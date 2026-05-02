@@ -43,10 +43,11 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     # 2. Calculer la distance entre le vecteur reçu et celui de la BDD
     distance = commpare_to_vector(stored_user.face_descriptor, user.face_descriptor)
     
-    if distance :
+    if distance:
         return {
-            "message": f"Connexion réussie ! Bienvenue {stored_user.nom_complet} ",
-            "distance": round(distance, 3)
+            "message": f"Connexion réussie ! Bienvenue {stored_user.nom_complet}",
+            "fullName": stored_user.nom_complet,
+            "email": stored_user.mail
         }
     else:
         raise HTTPException(status_code=401, detail="Visage non reconnu.")

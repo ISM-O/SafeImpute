@@ -1,90 +1,120 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import Webcam from 'react-webcam'
-import { getFaceDescriptor } from '../services/face'
-import { loginUser } from '../services/api'
+import { useCallback, useEffect, useRef, useState } from "react";
+import Webcam from "react-webcam";
+import { getFaceDescriptor } from "../services/face";
+import { loginUser } from "../services/api";
 
 export function Login({ onSuccess }) {
-  const webcamRef = useRef(null)
-  const [email, setEmail] = useState('')
-  const [capturedImage, setCapturedImage] = useState(null)
-  const [status, setStatus] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [devices, setDevices] = useState([])
-  const [selectedDeviceId, setSelectedDeviceId] = useState('')
+  const webcamRef = useRef(null);
+  const [email, setEmail] = useState("");
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [devices, setDevices] = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState("");
 
   useEffect(() => {
     async function loadCameras() {
-      if (!navigator.mediaDevices?.enumerateDevices) return
+      if (!navigator.mediaDevices?.enumerateDevices) return;
       try {
-        const cameras = (await navigator.mediaDevices.enumerateDevices()).filter(
-          (device) => device.kind === 'videoinput',
-        )
-        setDevices(cameras)
+        const cameras = (
+          await navigator.mediaDevices.enumerateDevices()
+        ).filter((device) => device.kind === "videoinput");
+        setDevices(cameras);
         if (cameras.length > 0) {
-          setSelectedDeviceId((current) => current || cameras[0].deviceId)
+          setSelectedDeviceId((current) => current || cameras[0].deviceId);
         }
       } catch (err) {
-        console.warn('Impossible de lister les caméras', err)
+        console.warn("Impossible de lister les caméras", err);
       }
     }
-    loadCameras()
-  }, [])
+    loadCameras();
+  }, []);
 
   const videoConstraints = {
     width: 360,
     height: 270,
     ...(selectedDeviceId
       ? { deviceId: { exact: selectedDeviceId } }
-      : { facingMode: 'user' }),
-  }
+      : { facingMode: "user" }),
+  };
 
   const capturePhoto = useCallback(() => {
-    const screenshot = webcamRef.current?.getScreenshot()
+    const screenshot = webcamRef.current?.getScreenshot();
     if (!screenshot) {
-      setError('Impossible de capturer la vidéo. Autorise la caméra et réessaie.')
-      return
+      setError(
+        "Impossible de capturer la vidéo. Autorise la caméra et réessaie.",
+      );
+      return;
     }
 
-    setCapturedImage(screenshot)
-    setStatus('Photo capturée, prête pour la connexion.')
-    setError('')
-  }, [])
+    setCapturedImage(screenshot);
+    setStatus("Photo capturée, prête pour la connexion.");
+    setError("");
+  }, []);
 
   const handleLogin = async (event) => {
-    event.preventDefault()
-    setError('')
-    setStatus('')
+    event.preventDefault();
+    setError("");
+    setStatus("");
 
     if (!email.trim()) {
-      setError('L’email est requis.')
-      return
+      setError("L’email est requis.");
+      return;
     }
 
     if (!capturedImage) {
-      setError('Capture d’abord une photo avec la caméra.')
-      return
+      setError("Capture d’abord une photo avec la caméra.");
+      return;
     }
 
-    setLoading(true)
+    setLoading(true);
     try {
-      const descriptor = await getFaceDescriptor(capturedImage)
-      const result = await loginUser({ email, image: capturedImage, descriptor })
-      setStatus('Connexion envoyée avec succès !')
-      setError('')
+      // 1. Récupérer le descripteur facial
+      const descriptor = await getFaceDescriptor(capturedImage);
+      if (!descriptor) {
+        setError("❌ Aucun visage détecté. Réessaie avec une meilleure photo.");
+        setLoading(false);
+        return;
+      }
+
+      console.log("✅ Descripteur reçu:", descriptor.length, "dimensions");
+
+      // 2. Envoyer au backend
+      const result = await loginUser({
+        email,
+        face_descriptor: descriptor,
+      });
+
+      // 3. Afficher un message de bienvenue
+      setStatus(`🎉 ${result.message || "Connexion réussie! Bienvenue!"}`);
+      setError("");
+
       if (onSuccess) {
         onSuccess({
-          fullName: result?.fullName || '',
+          fullName: result?.fullName || "",
           email,
-        })
+        });
       }
     } catch (err) {
-      setError(err.message || 'Une erreur est survenue lors de la connexion.')
-      setStatus('')
+      // Gérer les différents types d'erreurs
+      if (
+        err.message.includes("non trouvé") ||
+        err.message.includes("not found") ||
+        err.message.includes("non reconnu") ||
+        err.message.includes("not recognized")
+      ) {
+        setError("❌ Email ou visage incorrect.");
+      } else {
+        setError(
+          err.message || "❌ Une erreur est survenue lors de la connexion.",
+        );
+      }
+      setStatus("");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <section className="auth-page">
@@ -121,8 +151,11 @@ export function Login({ onSuccess }) {
           )}
 
           <div className="video-actions">
+            <button type="button" onClick={capturePhoto} disabled={loading}>
+              Capturer
+            </button>
             <button type="submit" disabled={loading}>
-              {loading ? 'Envoi en cours...' : 'Se connecter'}
+              {loading ? "Envoi en cours..." : "Se connecter"}
             </button>
           </div>
         </form>
@@ -147,11 +180,11 @@ export function Login({ onSuccess }) {
         </div>
 
         {capturedImage && (
-          <div className="image-preview" style={{ marginTop: '16px' }}>
+          <div className="image-preview" style={{ marginTop: "16px" }}>
             <img src={capturedImage} alt="Photo capturée" />
           </div>
         )}
       </div>
     </section>
-  )
+  );
 }

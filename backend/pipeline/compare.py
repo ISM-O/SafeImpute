@@ -7,7 +7,7 @@ def commpare_to_vector(vector_from_database, vector_from_frontend)-> bool:
 
     distance = math.sqrt(sum((a - b) ** 2 for a, b in zip(vector_from_database, vector_from_frontend)))  
 
-    if distance < 0.5:
+    if distance < 0.3:
         return True
     
     else :
