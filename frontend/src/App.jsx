@@ -3,7 +3,7 @@ import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
 import './App.css'
-
+/*
 function App() {
   const [count, setCount] = useState(0)
 
@@ -118,5 +118,93 @@ function App() {
     </>
   )
 }
+  
 
-export default App
+import { useEffect } from "react";
+import { loadModels } from "./faceDetection";
+
+function App() {
+  useEffect(() => {
+    const test = async () => {
+      await loadModels();
+    };
+
+    test();
+  }, []);
+
+  return <h1>Test face detection</h1>;
+}
+
+import { useEffect } from "react";
+import { loadModels } from "./faceDetection";
+
+function App() {
+  useEffect(() => {
+    const run = async () => {
+      await loadModels();
+      console.log("✅ MODELS CHARGÉS");
+  
+    };
+
+    run();
+  }, []);
+
+  return <h1>Test IA</h1>;
+}
+
+//export default App;
+export default App;
+//export default App
+*/
+import React, { useEffect, useRef } from 'react';
+import { loadModels, getFaceDescriptor } from './faceDetection';
+
+function App() {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    // On charge les modèles une seule fois au démarrage
+    loadModels();
+    startVideo();
+  }, []);
+
+  // Active la webcam
+  const startVideo = () => {
+    navigator.mediaDevices.getUserMedia({ video: {} })
+      .then((stream) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      })
+      .catch((err) => console.error("Erreur Webcam :", err));
+  };
+
+  // Analyse le visage dès que la vidéo tourne
+  const handleCapture = async () => {
+    setInterval(async () => {
+      if (videoRef.current) {
+        const descriptor = await getFaceDescriptor(videoRef.current);
+        if (descriptor) {
+          // C'est ici que tu obtiens le vecteur de 128 nombres
+          console.log("🧬 Vecteur facial (128 nombres) :", descriptor);
+        }
+      }
+    }, 1000); // Une analyse par seconde
+  };
+
+  return (
+    <div style={{ textAlign: 'center', marginTop: '50px' }}>
+      <h1>IA & Architecture : Détection Faciale</h1>
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        onPlay={handleCapture}
+        style={{ width: '640px', borderRadius: '15px', border: '3px solid #2ecc71' }}
+      />
+      <p>Ouvre la console (F12) pour voir les vecteurs mathématiques.</p>
+    </div>
+  );
+}
+
+export default App;
