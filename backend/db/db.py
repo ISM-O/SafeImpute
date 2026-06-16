@@ -70,7 +70,7 @@ def init_db() -> None:
     Elle crée toutes les tables définies par les modèles SQLAlchemy.
     """
     try:
-        from model.user import Base
+        from model.user.user import Base
 
         Base.metadata.create_all(bind=engine)
         print("✓ Tables de la base de données créées avec succès")
