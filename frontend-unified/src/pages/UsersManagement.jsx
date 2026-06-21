@@ -1,275 +1,404 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import apiClient from "../api/client";
 import {
   Box,
-  Card,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  FormControlLabel,
-  Checkbox,
-  CircularProgress,
-  Alert,
   Typography,
+  Button,
+  Grid,
+  Card,
+  CardContent,
+  Avatar,
+  Chip,
+  TextField,
+  InputAdornment,
+  LinearProgress,
+  IconButton,
+  Tooltip,
+  CircularProgress,
 } from "@mui/material";
-import { DataGrid } from "@mui/x-data-grid";
-import { Pen, Trash } from "@phosphor-icons/react";
-import AdminLayout from "../layout/AdminLayout";
-// import adminService from "../services/adminService";
+import {
+  MagnifyingGlass,
+  Plus,
+  LockKey,
+  ArrowRight,
+  Circle,
+} from "@phosphor-icons/react";
+import PermissionMatrixModal from "../components/PermissionMatrixModal";
+
+const RoleLegend = ({ role, color }) => (
+  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+    <Circle size={10} weight="fill" color={color} />
+    <Typography
+      variant="body2"
+      sx={{ color: "text.secondary", fontWeight: 500 }}
+    >
+      {role}
+    </Typography>
+  </Box>
+);
+
+const fetchUsers = async () => {
+  const { data } = await apiClient.get("/users");
+  return data;
+};
 
 const UsersManagement = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [permissions, setPermissions] = useState({
-    can_view: true,
-    can_edit: false,
+  const {
+    data: users = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["users"],
+    queryFn: fetchUsers,
   });
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const loadUsers = async () => {
-    try {
-      // --- DÉBUT DU MOCK ---
-      const mockUsers = [
-        {
-          id: 1,
-          nom_complet: "Ismaël Gansonre",
-          mail: "ismael@northwind.com",
-          can_view: true,
-          can_edit: true,
-        },
-        {
-          id: 2,
-          nom_complet: "Dr. Bandoss",
-          mail: "bandoss@northwind.com",
-          can_view: true,
-          can_edit: false,
-        },
-        {
-          id: 3,
-          nom_complet: "Alice Admin",
-          mail: "alice@northwind.com",
-          can_view: true,
-          can_edit: true,
-        },
-      ];
+  const filteredUsers = users.filter(
+    (u) =>
+      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
-      const data = await new Promise((resolve) =>
-        setTimeout(() => resolve(mockUsers), 500),
-      );
-      setUsers(data || []);
-      // --- FIN DU MOCK ---
-    } catch (err) {
-      setError("Failed to load users");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEditClick = (user) => {
+  const handleOpenModal = (user) => {
     setSelectedUser(user);
-    setPermissions({
-      can_view: user.can_view,
-      can_edit: user.can_edit,
-    });
-    setOpenDialog(true);
+    setIsModalOpen(true);
   };
 
-  const handleSavePermissions = async () => {
-    if (!selectedUser) return;
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedUser(null);
+  };
 
-    try {
-      // --- MOCK SAUVEGARDE ---
-      // On met à jour l'état local au lieu d'appeler l'API
-      const updatedUsers = users.map((u) =>
-        u.id === selectedUser.id ? { ...u, ...permissions } : u,
-      );
-      setUsers(updatedUsers);
-      setOpenDialog(false);
-      // --- FIN MOCK ---
-    } catch (err) {
-      setError("Failed to update permissions");
+  const getInitials = (name) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "Active":
+        return "success";
+      case "Invited":
+        return "warning";
+      case "Deactivated":
+        return "default";
+      default:
+        return "default";
     }
   };
 
-  const handleDeleteUser = async (userId) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur?")) {
-      try {
-        // --- MOCK SUPPRESSION ---
-        // On retire l'utilisateur de l'état local
-        const filteredUsers = users.filter((u) => u.id !== userId);
-        setUsers(filteredUsers);
-        // --- FIN MOCK ---
-      } catch (err) {
-        setError("Failed to delete user");
-      }
+  const getAvatarColor = (name) => {
+    // Generate a consistent color based on name string for variety
+    const colors = [
+      "#10b981",
+      "#6366f1",
+      "#ec4899",
+      "#f59e0b",
+      "#3b82f6",
+      "#8b5cf6",
+      "#14b8a6",
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
+    return colors[Math.abs(hash) % colors.length];
   };
 
-  const columns = [
-    { field: "nom_complet", headerName: "Nom", flex: 1, minWidth: 150 },
-    { field: "mail", headerName: "Email", flex: 1, minWidth: 200 },
-    {
-      field: "can_view",
-      headerName: "Voir",
-      width: 80,
-      renderCell: (params) => (params.value ? "✓" : "✗"),
-    },
-    {
-      field: "can_edit",
-      headerName: "Éditer",
-      width: 80,
-      renderCell: (params) => (params.value ? "✓" : "✗"),
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      width: 150,
-      sortable: false,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<Pen size={16} />}
-            onClick={() => handleEditClick(params.row)}
-          >
-            Éditer
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            color="error"
-            startIcon={<Trash size={16} />}
-            onClick={() => handleDeleteUser(params.row.id)}
-          >
-            Supprimer
-          </Button>
-        </Box>
-      ),
-    },
-  ];
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <AdminLayout>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            minHeight: "400px",
-          }}
-        >
-          <CircularProgress />
-        </Box>
-      </AdminLayout>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Box sx={{ p: 4, textAlign: "center" }}>
+        <Typography color="error">Failed to load users.</Typography>
+      </Box>
     );
   }
 
   return (
-    <AdminLayout>
-      <Box>
-        <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
-          Gestion des Utilisateurs
-        </Typography>
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
-
-        <Card sx={{ borderRadius: 2 }}>
-          <DataGrid
-            rows={users}
-            columns={columns}
-            pageSize={10}
-            rowsPerPageOptions={[10, 25, 50]}
-            disableSelectionOnClick
-            sx={{
-              border: "none",
-              "& .MuiDataGrid-cell": { borderBottom: "1px solid #E2E8F0" },
-            }}
-          />
-        </Card>
+    <Box
+      sx={{
+        p: { xs: 2, md: 4 },
+        maxWidth: 1200,
+        margin: "0 auto",
+        width: "100%",
+      }}
+    >
+      {/* Header Area */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          mb: 4,
+          flexWrap: "wrap",
+          gap: 2,
+        }}
+      >
+        <Box>
+          <Typography variant="h1" sx={{ mb: 0.5 }}>
+            Access & Users
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            {users.length} people · click anyone to view and update their
+            permissions
+          </Typography>
+        </Box>
+        <Box sx={{ display: "flex", gap: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<LockKey />}
+            sx={{ borderRadius: "100px" }}
+          >
+            Full access
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Plus />}
+            sx={{ borderRadius: "100px" }}
+          >
+            Add user
+          </Button>
+        </Box>
       </Box>
 
-      <Dialog
-        open={openDialog}
-        onClose={() => setOpenDialog(false)}
-        maxWidth="sm"
-        fullWidth
+      {/* Search and Filters */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 4,
+          flexWrap: "wrap",
+          gap: 2,
+        }}
       >
-        <DialogTitle>Modifier les Permissions</DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <TextField
-              label="Nom"
-              value={selectedUser?.nom_complet || ""}
-              disabled
-              fullWidth
-            />
-            <TextField
-              label="Email"
-              value={selectedUser?.mail || ""}
-              disabled
-              fullWidth
-            />
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>
-                Permissions
-              </Typography>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={permissions.can_view}
-                    onChange={(e) =>
-                      setPermissions({
-                        ...permissions,
-                        can_view: e.target.checked,
-                      })
+        <TextField
+          placeholder="Search people..."
+          variant="outlined"
+          size="small"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          sx={{ width: { xs: "100%", sm: 320 } }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <MagnifyingGlass size={20} color="#94a3b8" />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <Box sx={{ display: "flex", gap: 3 }}>
+          <RoleLegend role="Admin" color="#10b981" />
+          <RoleLegend role="Clinician" color="#6366f1" />
+          <RoleLegend role="Researcher" color="#ec4899" />
+        </Box>
+      </Box>
+
+      {/* Users Grid */}
+      <Grid container spacing={3}>
+        {filteredUsers.map((user) => (
+          <Grid item xs={12} md={6} key={user.id}>
+            <Card
+              sx={{
+                borderTop: `4px solid ${user.color}`,
+                cursor: "pointer",
+                "&:hover": {
+                  boxShadow:
+                    "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)",
+                  transform: "translateY(-2px)",
+                },
+                opacity: user.status === "Deactivated" ? 0.7 : 1,
+              }}
+              onClick={() => handleOpenModal(user)}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    mb: 2,
+                  }}
+                >
+                  <Box sx={{ display: "flex", gap: 2 }}>
+                    <Avatar
+                      sx={{
+                        bgcolor: getAvatarColor(user.name),
+                        width: 48,
+                        height: 48,
+                        fontSize: "1.2rem",
+                      }}
+                    >
+                      {getInitials(user.name)}
+                    </Avatar>
+                    <Box>
+                      <Typography
+                        variant="h4"
+                        sx={{ mb: 0.5, fontSize: "1.125rem" }}
+                      >
+                        {user.name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {user.email}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Chip
+                    label={user.status}
+                    size="small"
+                    color={getStatusColor(user.status)}
+                    icon={
+                      user.status === "Active" ? (
+                        <Circle
+                          weight="fill"
+                          size={10}
+                          style={{ marginLeft: 6, color: "inherit" }}
+                        />
+                      ) : undefined
                     }
+                    sx={{
+                      fontWeight: 600,
+                      borderRadius: "100px",
+                      bgcolor:
+                        user.status === "Active"
+                          ? "#d1fae5"
+                          : user.status === "Invited"
+                            ? "#fef3c7"
+                            : "#f1f5f9",
+                      color:
+                        user.status === "Active"
+                          ? "#059669"
+                          : user.status === "Invited"
+                            ? "#d97706"
+                            : "#64748b",
+                      border: "none",
+                    }}
                   />
-                }
-                label="Peut voir les données"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={permissions.can_edit}
-                    onChange={(e) =>
-                      setPermissions({
-                        ...permissions,
-                        can_edit: e.target.checked,
-                      })
-                    }
+                </Box>
+
+                <Box
+                  sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 700,
+                      color: user.color,
+                      bgcolor: `${user.color}15`,
+                      px: 1,
+                      py: 0.25,
+                      borderRadius: 1,
+                    }}
+                  >
+                    {user.role}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {user.description}
+                  </Typography>
+                </Box>
+
+                <Box sx={{ mb: 2 }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      mb: 1,
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
+                      <LockKey size={14} /> Access
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                      {user.accessLevel} / {user.maxAccess}
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={(user.accessLevel / user.maxAccess) * 100}
+                    sx={{
+                      height: 6,
+                      borderRadius: 3,
+                      bgcolor: "#f1f5f9",
+                      "& .MuiLinearProgress-bar": {
+                        bgcolor: user.color,
+                        borderRadius: 3,
+                      },
+                    }}
                   />
-                }
-                label="Peut éditer les données"
-              />
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Annuler</Button>
-          <Button
-            onClick={handleSavePermissions}
-            variant="contained"
-            color="primary"
-          >
-            Enregistrer
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </AdminLayout>
+                </Box>
+
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mt: 2,
+                    pt: 2,
+                    borderTop: "1px solid #f1f5f9",
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    color="text.disabled"
+                    sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                  >
+                    <Circle size={12} /> {user.lastActive}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      fontWeight: 600,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 0.5,
+                      "&:hover": { color: "primary.main" },
+                    }}
+                  >
+                    Manage access <ArrowRight size={14} />
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Permission Matrix Modal */}
+      {selectedUser && (
+        <PermissionMatrixModal
+          open={isModalOpen}
+          onClose={handleCloseModal}
+          user={selectedUser}
+        />
+      )}
+    </Box>
   );
 };
 

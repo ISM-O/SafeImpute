@@ -24,12 +24,8 @@ const RoleBasedRedirect = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // Rediriger vers le dashboard admin ou utilisateur selon le rôle
-  if (user?.is_superadmin) {
-    return <Navigate to="/admin/dashboard" replace />;
-  }
-
-  return <Navigate to="/home" replace />;
+  // All authenticated users go to /overview; per-section access is handled inside
+  return <Navigate to="/overview" replace />;
 };
 
 export default RoleBasedRedirect;

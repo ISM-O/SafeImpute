@@ -1,120 +1,19 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import styled from "styled-components";
-import { Warning } from "@phosphor-icons/react";
-
-import AuthCard from "../components/AuthCard";
-import AuthField from "../components/AuthField";
-import FaceIdButton from "../components/FaceIdButton";
-import FaceIdModal from "../components/FaceIdModal";
-import authService from "../services/authService";
+import { useNavigate } from "react-router-dom";
+import { Box, Typography, Button, TextField, CircularProgress } from "@mui/material";
+import { WarningCircle, Heartbeat } from "@phosphor-icons/react";
 import { useAuth } from "../hooks/useAuth";
 
-// --- Styled Components locaux pour la page ---
-const Form = styled.form`
-  display: flex;
-  flex-direction: column;
-`;
-
-const ForgotLink = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 16px;
-  margin-top: -4px;
-`;
-
-const StyledLink = styled(Link)`
-  font-size: 13px;
-  color: #1a7a5e;
-  text-decoration: none;
-  font-weight: 500;
-  &:hover {
-    text-decoration: underline;
-  }
-`;
-
-const SubmitBtn = styled.button`
-  width: 100%;
-  padding: 14px;
-  background: #1a7a5e;
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  transition:
-    background 0.2s,
-    transform 0.1s;
-
-  &:hover:not(:disabled) {
-    background: #155f49;
-  }
-  &:active:not(:disabled) {
-    transform: scale(0.985);
-  }
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-`;
-
-const ErrorMsg = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: #fef2f2;
-  border: 1px solid #f87171;
-  border-radius: 8px;
-  font-size: 13px;
-  color: #dc2626;
-  margin-bottom: 16px;
-`;
-
-const FooterText = styled.div`
-  text-align: center;
-  margin-top: 24px;
-  font-size: 13px;
-  color: #5a5e65;
-`;
-
-// --- Composant Principal ---
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { login, setAuthError } = useAuth();
+  const { login } = useAuth();
 
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
-  const [errors, setErrors] = useState({});
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  const [faceModalOpen, setFaceModalOpen] = useState(false);
-  const [faceLoading, setFaceLoading] = useState(false);
-  const [apiError, setApiError] = useState(null);
-  const [faceEmail, setFaceEmail] = useState("");
-
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.email) {
-      newErrors.email = "Email is required";
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Email is invalid";
-    }
-
-    if (!formData.password) {
-      newErrors.password = "Password is required";
-    } else if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -122,181 +21,147 @@ const LoginPage = () => {
       ...prev,
       [name]: value,
     }));
-    if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: "",
-      }));
-    }
+    setError(null);
   };
 
   const handlePasswordLogin = async (e) => {
     e.preventDefault();
 
-    if (!validateForm()) {
+    if (!formData.email || !formData.password) {
+      setError("Please enter both email and password.");
       return;
     }
 
     setLoading(true);
-    setApiError(null);
+    setError(null);
 
-    try {
-      const response = await authService.loginWithPassword(
-        formData.email,
-        formData.password,
-      );
+    const success = await login(formData.email, formData.password);
+    setLoading(false);
 
-      login(response.user, response.access_token);
-
-      // Rediriger vers le dashboard admin ou utilisateur selon le rôle
-      if (response.user?.is_superadmin) {
-        navigate("/admin/dashboard");
-      } else {
-        navigate("/home");
-      }
-    } catch (error) {
-      const errorMsg =
-        typeof error === "string"
-          ? error
-          : error?.detail || "Login failed. Please try again.";
-      setApiError(errorMsg);
-      setAuthError(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFaceIdClick = async () => {
-    if (!formData.email) {
-      setApiError("Please enter your email first to use Face ID");
-      return;
-    }
-
-    if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      setApiError("Please enter a valid email");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await authService.checkEmail(formData.email);
-      // Correspondance avec ton backend (face_id_enrolled)
-      if (!response.face_id_enrolled) {
-        setApiError(
-          "Face ID is not enrolled for this email. Please register first.",
-        );
-        setLoading(false);
-        return;
-      }
-      setFaceEmail(formData.email);
-      setFaceModalOpen(true);
-    } catch (error) {
-      const errorMsg =
-        typeof error === "string"
-          ? error
-          : error?.detail || "Email verification failed.";
-      setApiError(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFaceCapture = async (faceDescriptor) => {
-    setFaceLoading(true);
-    setApiError(null);
-
-    try {
-      const response = await authService.loginWithFace(
-        faceEmail,
-        Array.from(faceDescriptor),
-      );
-
-      login(response.user, response.access_token);
-      setFaceModalOpen(false);
-
-      // Rediriger vers le dashboard admin ou utilisateur selon le rôle
-      if (response.user?.is_superadmin) {
-        navigate("/admin/dashboard");
-      } else {
-        navigate("/home");
-      }
-    } catch (error) {
-      const errorMsg =
-        typeof error === "string"
-          ? error
-          : error?.detail || "Face ID authentication failed.";
-      setApiError(errorMsg);
-      setAuthError(errorMsg);
-    } finally {
-      setFaceLoading(false);
+    if (success) {
+      // RoleBasedRedirect in router will handle the proper routing after login
+      navigate("/");
+    } else {
+      setError("Incorrect email or password");
     }
   };
 
   return (
-    <>
-      <AuthCard
-        title="Sign in to Northwind Health"
-        subtitle="Secure access for clinical staff."
-      >
-        {apiError && (
-          <ErrorMsg>
-            <Warning size={20} weight="fill" />
-            {apiError}
-          </ErrorMsg>
+    <Box sx={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      bgcolor: 'background.default',
+      p: 2
+    }}>
+      <Box sx={{
+        bgcolor: 'background.paper',
+        borderRadius: 4,
+        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.05)',
+        border: '1px solid #e2e8f0',
+        p: { xs: 3, md: 5 },
+        width: '100%',
+        maxWidth: 400,
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 4, justifyContent: 'center' }}>
+          <Box sx={{
+            bgcolor: "primary.main",
+            color: "white",
+            p: 1.5,
+            borderRadius: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <Heartbeat size={28} weight="bold" />
+          </Box>
+          <Box>
+            <Typography variant="h3" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+              SafeImpute
+            </Typography>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              Clinical imputation
+            </Typography>
+          </Box>
+        </Box>
+
+        <Typography variant="h5" sx={{ mb: 1, textAlign: 'center', fontWeight: 600 }}>
+          Sign in to your account
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 4, textAlign: 'center' }}>
+          Secure access for clinical staff and researchers.
+        </Typography>
+
+        {error && (
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            p: 1.5,
+            bgcolor: '#fef2f2',
+            border: '1px solid #f87171',
+            borderRadius: 2,
+            color: '#dc2626',
+            mb: 3
+          }}>
+            <WarningCircle size={20} weight="fill" />
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>{error}</Typography>
+          </Box>
         )}
 
-        <Form onSubmit={handlePasswordLogin}>
-          <AuthField
+        <form onSubmit={handlePasswordLogin}>
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+            Work email
+          </Typography>
+          <TextField
+            fullWidth
             name="email"
-            label="Work email"
             type="email"
+            placeholder="name@hospital.org"
             value={formData.email}
             onChange={handleInputChange}
-            error={errors.email}
-            helperText={errors.email}
-            disabled={loading || faceLoading}
+            disabled={loading}
+            sx={{ mb: 3 }}
+            InputProps={{
+              sx: { borderRadius: 2 }
+            }}
           />
 
-          <AuthField
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+            Password
+          </Typography>
+          <TextField
+            fullWidth
             name="password"
-            label="Password"
             type="password"
+            placeholder="••••••••"
             value={formData.password}
             onChange={handleInputChange}
-            error={errors.password}
-            helperText={errors.password}
-            disabled={loading || faceLoading}
+            disabled={loading}
+            sx={{ mb: 4 }}
+            InputProps={{
+              sx: { borderRadius: 2 }
+            }}
           />
 
-          <ForgotLink>
-            <StyledLink to="/forgot-password">Forgot password?</StyledLink>
-          </ForgotLink>
-
-          <SubmitBtn type="submit" disabled={loading || faceLoading}>
-            {loading ? "Signing in..." : "Sign in"}
-          </SubmitBtn>
-        </Form>
-
-        <FaceIdButton
-          onClick={handleFaceIdClick}
-          loading={faceLoading}
-          disabled={loading}
-        />
-
-        <FooterText>
-          Vous n'avez pas de compte ?{" "}
-          <StyledLink to="/register" style={{ fontWeight: 600 }}>
-            S'inscrire ici
-          </StyledLink>
-        </FooterText>
-      </AuthCard>
-
-      <FaceIdModal
-        open={faceModalOpen}
-        onClose={() => setFaceModalOpen(false)}
-        onCapture={handleFaceCapture}
-      />
-    </>
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            disabled={loading}
+            sx={{
+              py: 1.5,
+              borderRadius: 2,
+              fontWeight: 600,
+              fontSize: '1rem',
+            }}
+          >
+            {loading ? <CircularProgress size={24} color="inherit" /> : "Sign in"}
+          </Button>
+        </form>
+      </Box>
+    </Box>
   );
 };
 

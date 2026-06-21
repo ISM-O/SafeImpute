@@ -1,17 +1,17 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import LoginPage from "../pages/LoginPage.jsx";
 import RegisterPage from "../pages/RegisterPage.jsx";
-import DashboardPage from "../pages/DashboardPage.jsx";
-import ConsultationHistoryPage from "../pages/ConsultationHistoryPage.jsx";
-import ResultsPage from "../pages/ResultsPage.jsx";
-import SettingsPage from "../pages/SettingsPage.jsx";
-import UserLayout from "../layout/UserLayout.jsx";
 import ProtectedRoute, { AdminProtectedRoute } from "./ProtectedRoute.jsx";
-import AdminLayout from "../layout/AdminLayout.jsx";
-import AdminDashboard from "../pages/AdminDashboard.jsx";
-import UsersManagement from "../pages/UsersManagement.jsx";
-import AuditLogs from "../pages/AuditLogs.jsx";
+import SidebarLayout from "../layout/SidebarLayout.jsx";
 import RoleBasedRedirect from "./RoleBasedRedirect.jsx";
+
+import OverviewPage from "../pages/OverviewPage.jsx";
+import PatientsPage from "../pages/PatientsPage.jsx";
+import ImputationPage from "../pages/ImputationPage.jsx";
+import DashboardPage from "../pages/DashboardPage.jsx";
+import CompareMethodsPage from "../pages/CompareMethodsPage.jsx";
+import PrivacyReportPage from "../pages/PrivacyReportPage.jsx";
+import UsersManagement from "../pages/UsersManagement.jsx";
 
 const router = createBrowserRouter([
   {
@@ -30,48 +30,47 @@ const router = createBrowserRouter([
     element: <ProtectedRoute />,
     children: [
       {
-        element: <UserLayout />,
+        element: <SidebarLayout />,
         children: [
           {
-            path: "/home",
+            path: "/overview",
+            element: <OverviewPage />,
+          },
+          {
+            path: "/patients",
+            element: <PatientsPage />,
+          },
+          {
+            path: "/imputation",
+            element: <ImputationPage />,
+          },
+          {
+            path: "/dashboard",
             element: <DashboardPage />,
           },
           {
-            path: "/consultations",
-            element: <ConsultationHistoryPage />,
+            path: "/compare-methods",
+            element: <CompareMethodsPage />,
           },
           {
-            path: "/results",
-            element: <ResultsPage />,
+            path: "/privacy-report",
+            element: <PrivacyReportPage />,
           },
           {
-            path: "/settings",
-            element: <SettingsPage />,
+            path: "/access-users",
+            element: (
+              <AdminProtectedRoute>
+                <UsersManagement />
+              </AdminProtectedRoute>
+            ),
           },
         ],
       },
     ],
   },
   {
-    element: <AdminProtectedRoute />,
-    children: [
-      {
-        path: "/admin/dashboard",
-        element: <AdminDashboard />,
-      },
-      {
-        path: "/admin/users",
-        element: <UsersManagement />,
-      },
-      {
-        path: "/admin/audit-logs",
-        element: <AuditLogs />,
-      },
-    ],
-  },
-  {
     path: "*",
-    element: <LoginPage />,
+    element: <Navigate to="/" replace />,
   },
 ]);
 
