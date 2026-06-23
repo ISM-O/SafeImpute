@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .db.database import engine, Base
-from .routers import auth, users, impute
+from .routers import auth, users, impute, patients, dashboard, evaluate, privacy
 
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
@@ -11,7 +11,7 @@ app = FastAPI(title="SafeImpute API", description="Plateforme sécurisée d'impu
 # Setup CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Update for production
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], # Explicit origins required when allow_credentials=True
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -21,6 +21,10 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(impute.router)
+app.include_router(patients.router)
+app.include_router(dashboard.router)
+app.include_router(evaluate.router)
+app.include_router(privacy.router)
 
 @app.get("/")
 def read_root():

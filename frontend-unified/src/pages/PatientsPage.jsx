@@ -1,53 +1,10 @@
-import { Box, Typography, Button, TextField, InputAdornment, Grid, Card, CardContent, Chip, LinearProgress, Divider } from "@mui/material";
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, Button, TextField, InputAdornment, Grid, Card, CardContent, Chip, LinearProgress, Divider, CircularProgress } from "@mui/material";
 import { Search, FileUploadOutlined, AutoAwesome, CheckCircleOutline, ErrorOutline, Storage, ArrowForward } from "@mui/icons-material";
+import PatientPanelModal from '../components/PatientPanelModal';
 
-const patientsData = [
-  {
-    id: "PT-10482", status: "Needs review", statusColor: "warning",
-    demographics: "64F · Day 2", diagnosis: "Sepsis",
-    progress: { observed: 8, toImpute: 4, flagged: 7 },
-    badges: [{ label: "3 confident", color: "success" }, { label: "2 uncertain", color: "warning" }],
-    time: "8 min ago", dataset: "MIMIC-IV demo"
-  },
-  {
-    id: "PT-10517", status: "Imputed", statusColor: "success",
-    demographics: "71M · Day 1", diagnosis: "Septic shock",
-    progress: { observed: 8, toImpute: 3, flagged: 8 },
-    badges: [{ label: "3 confident", color: "success" }],
-    time: "22 min ago", dataset: "MIMIC-IV demo"
-  },
-  {
-    id: "PT-10463", status: "Ready", statusColor: "info",
-    demographics: "58F · Day 4", diagnosis: "Pneumonia",
-    progress: { observed: 8, toImpute: 2, flagged: 3 },
-    badges: [],
-    time: "1 h ago", dataset: "PhysioNet 2019"
-  },
-  {
-    id: "PT-10588", status: "Imported", statusColor: "default",
-    demographics: "45M · Day 1", diagnosis: "Diabetic ketoacidosis",
-    progress: { observed: 8, toImpute: 2, flagged: 6 },
-    badges: [],
-    time: "34 min ago", dataset: "MIMIC-IV demo"
-  },
-  {
-    id: "PT-10421", status: "Exported", statusColor: "default",
-    demographics: "67F · Day 6", diagnosis: "Acute kidney injury",
-    progress: { observed: 8, toImpute: 3, flagged: 3 },
-    badges: [{ label: "2 confident", color: "success" }],
-    time: "1 d ago", dataset: "PhysioNet 2019"
-  },
-  {
-    id: "PT-10605", status: "Needs review", statusColor: "warning",
-    demographics: "39M · Day 2", diagnosis: "Polytrauma",
-    progress: { observed: 8, toImpute: 3, flagged: 6 },
-    badges: [{ label: "1 confident", color: "success" }, { label: "2 uncertain", color: "warning" }],
-    time: "3 h ago", dataset: "Synthetic v3"
-  }
-];
-
-const PatientCard = ({ patient }) => (
-  <Card sx={{ height: '100%', cursor: 'pointer', '&:hover': { borderColor: 'primary.main', boxShadow: 2 } }}>
+const PatientCard = ({ patient, onClick }) => (
+  <Card onClick={onClick} sx={{ height: '100%', cursor: 'pointer', '&:hover': { borderColor: 'primary.main', boxShadow: 2 } }}>
     <CardContent sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -68,21 +25,21 @@ const PatientCard = ({ patient }) => (
       <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{patient.demographics}</Typography>
       <Typography variant="body1" sx={{ mb: 3, fontWeight: 500 }}>{patient.diagnosis}</Typography>
 
-      {/* Progress Bar Mock */}
+      {/* Progress Bar */}
       <Box sx={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', mb: 1, bgcolor: 'grey.200' }}>
-        <Box sx={{ width: '40%', bgcolor: 'primary.main' }} />
-        <Box sx={{ width: '20%', bgcolor: 'warning.main' }} />
-        <Box sx={{ width: '30%', bgcolor: 'error.main' }} />
+        <Box sx={{ width: `${(patient.progress.observed / 38) * 100}%`, bgcolor: 'primary.main' }} />
+        <Box sx={{ width: `${(patient.progress.imputed / 38) * 100}%`, bgcolor: 'success.main' }} />
+        <Box sx={{ width: `${(patient.progress.toImpute / 38) * 100}%`, bgcolor: 'warning.main' }} />
       </Box>
       <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
         <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', color: 'primary.main', fontWeight: 600 }}>
           <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', mr: 0.5 }} /> {patient.progress.observed} observed
         </Typography>
-        <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', color: 'warning.main', fontWeight: 600 }}>
-          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main', mr: 0.5 }} /> {patient.progress.toImpute} to impute
+        <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', color: 'success.main', fontWeight: 600 }}>
+          <AutoAwesome sx={{ fontSize: 12, mr: 0.5 }} /> {patient.progress.imputed} imputed
         </Typography>
-        <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', color: 'error.main', fontWeight: 600 }}>
-          <ErrorOutline sx={{ fontSize: 12, mr: 0.5 }} /> {patient.progress.flagged} flagged
+        <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', color: 'warning.main', fontWeight: 600 }}>
+          <ErrorOutline sx={{ fontSize: 12, mr: 0.5 }} /> {patient.progress.toImpute} to impute
         </Typography>
       </Box>
 
@@ -113,6 +70,32 @@ const PatientCard = ({ patient }) => (
 );
 
 const PatientsPage = () => {
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Function to refresh patients data, passed to the modal
+  const fetchPatients = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8000/patients/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPatients(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch patients:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPatients();
+  }, []);
+
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, margin: "0 auto" }}>
       {/* Header */}
@@ -149,13 +132,38 @@ const PatientsPage = () => {
       </Box>
 
       {/* Grid */}
-      <Grid container spacing={3}>
-        {patientsData.map((patient) => (
-          <Grid item xs={12} sm={6} md={4} key={patient.id}>
-            <PatientCard patient={patient} />
-          </Grid>
-        ))}
-      </Grid>
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
+          <CircularProgress />
+        </Box>
+      ) : patients.length === 0 ? (
+        <Box sx={{ py: 10, textAlign: 'center' }}>
+          <Typography variant="h6" color="text.secondary">No patients found</Typography>
+          <Typography variant="body2" color="text.secondary">Use the Overview page to import and impute patients.</Typography>
+        </Box>
+      ) : (
+        <Grid container spacing={3}>
+          {patients.map((patient) => (
+            <Grid item xs={12} sm={6} md={4} key={patient.id}>
+              <PatientCard patient={patient} onClick={() => setSelectedPatient({ 
+                id: patient.id, 
+                dataset: patient.dataset,
+                observedData: patient.observed_data,
+                imputationResults: patient.imputed_data
+              })} />
+            </Grid>
+          ))}
+        </Grid>
+      )}
+      
+      <PatientPanelModal 
+        open={!!selectedPatient} 
+        onClose={() => {
+          setSelectedPatient(null);
+          fetchPatients(); // Refresh list when modal closes
+        }} 
+        patient={selectedPatient} 
+      />
     </Box>
   );
 };

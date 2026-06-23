@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+import apiClient from "../api/client";
 import {
   Dialog,
   DialogTitle,
@@ -16,6 +18,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Select,
+  MenuItem
 } from "@mui/material";
 import { X, WarningCircle, Circle, Key } from "@phosphor-icons/react";
 
@@ -52,8 +56,30 @@ const PermissionSwitch = ({ checked, disabled }) => {
   );
 };
 
-const PermissionMatrixModal = ({ open, onClose, user }) => {
+const PermissionMatrixModal = ({ open, onClose, user, onUserUpdated }) => {
+  const [selectedRole, setSelectedRole] = useState(user?.role || "Clinicien");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (user) setSelectedRole(user.role);
+  }, [user]);
+
   if (!user) return null;
+
+  const handleSave = async () => {
+    if (selectedRole !== user.role) {
+      try {
+        setSaving(true);
+        await apiClient.put(`/users/${user.id}/role`, { role: selectedRole });
+        onUserUpdated && onUserUpdated();
+      } catch (err) {
+        console.error("Failed to update role", err);
+      } finally {
+        setSaving(false);
+      }
+    }
+    onClose();
+  };
 
   const getInitials = (name) => name.split(" ").map((n) => n[0]).join("").toUpperCase().substring(0, 2);
 
@@ -67,18 +93,25 @@ const PermissionMatrixModal = ({ open, onClose, user }) => {
           <Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
               <Typography variant="h3">{user.name}</Typography>
-              <Chip
-                label={user.role}
+              <Select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
                 size="small"
+                variant="outlined"
                 sx={{
-                  height: 20,
+                  height: 24,
                   fontSize: "0.75rem",
                   fontWeight: 600,
                   bgcolor: `${user.color}15`,
                   color: user.color,
-                  border: "none",
+                  "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+                  "& .MuiSelect-select": { py: 0, pl: 1, pr: 3 }
                 }}
-              />
+              >
+                <MenuItem value="Clinicien">Clinicien</MenuItem>
+                <MenuItem value="Chercheur">Chercheur</MenuItem>
+                <MenuItem value="Admin">Admin</MenuItem>
+              </Select>
             </Box>
             <Typography variant="body2" color="text.secondary">
               {user.email}
@@ -171,11 +204,11 @@ const PermissionMatrixModal = ({ open, onClose, user }) => {
       </DialogContent>
 
       <DialogActions sx={{ p: 3, pt: 1, borderTop: "1px solid #e2e8f0" }}>
-        <Button onClick={onClose} sx={{ color: "text.secondary" }}>
+        <Button onClick={onClose} sx={{ color: "text.secondary" }} disabled={saving}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={onClose}>
-          Save changes
+        <Button variant="contained" onClick={handleSave} disabled={saving}>
+          {saving ? "Saving..." : "Save changes"}
         </Button>
       </DialogActions>
     </Dialog>

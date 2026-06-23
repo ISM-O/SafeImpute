@@ -16,6 +16,10 @@ import {
   IconButton,
   Tooltip,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from "@mui/material";
 import {
   MagnifyingGlass,
@@ -48,6 +52,7 @@ const UsersManagement = () => {
     data: users = [],
     isLoading,
     isError,
+    refetch
   } = useQuery({
     queryKey: ["users"],
     queryFn: fetchUsers,
@@ -56,6 +61,27 @@ const UsersManagement = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Add User State
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [addingUser, setAddingUser] = useState(false);
+  const [addUserError, setAddUserError] = useState(null);
+  const [newUser, setNewUser] = useState({ email: "", password: "", role: "Clinicien" });
+
+  const handleAddUser = async () => {
+    try {
+      setAddingUser(true);
+      setAddUserError(null);
+      await apiClient.post("/users", newUser);
+      setIsAddUserModalOpen(false);
+      setNewUser({ email: "", password: "", role: "Clinicien" });
+      refetch();
+    } catch (err) {
+      setAddUserError(err.response?.data?.detail || "Failed to add user");
+    } finally {
+      setAddingUser(false);
+    }
+  };
 
   const filteredUsers = users.filter(
     (u) =>
@@ -177,6 +203,7 @@ const UsersManagement = () => {
             variant="contained"
             startIcon={<Plus />}
             sx={{ borderRadius: "100px" }}
+            onClick={() => setIsAddUserModalOpen(true)}
           >
             Add user
           </Button>
@@ -396,8 +423,51 @@ const UsersManagement = () => {
           open={isModalOpen}
           onClose={handleCloseModal}
           user={selectedUser}
+          onUserUpdated={() => refetch()}
         />
       )}
+      
+      {/* Add User Modal */}
+      <Dialog open={isAddUserModalOpen} onClose={() => setIsAddUserModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add New User</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          {addUserError && <Typography color="error" sx={{ mb: 2 }}>{addUserError}</Typography>}
+          <TextField
+            fullWidth
+            label="Email"
+            margin="normal"
+            value={newUser.email}
+            onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+          />
+          <TextField
+            fullWidth
+            label="Password"
+            type="password"
+            margin="normal"
+            value={newUser.password}
+            onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+          />
+          <TextField
+            select
+            fullWidth
+            label="Role"
+            margin="normal"
+            value={newUser.role}
+            onChange={(e) => setNewUser({...newUser, role: e.target.value})}
+            SelectProps={{ native: true }}
+          >
+            <option value="Clinicien">Clinicien</option>
+            <option value="Chercheur">Chercheur</option>
+            <option value="Admin">Admin</option>
+          </TextField>
+        </DialogContent>
+        <DialogActions sx={{ p: 3 }}>
+          <Button onClick={() => setIsAddUserModalOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleAddUser} disabled={addingUser}>
+            {addingUser ? "Adding..." : "Add User"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

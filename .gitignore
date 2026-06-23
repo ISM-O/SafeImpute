@@ -17,5 +17,7 @@ backend/__pycache__/
 # SECURITE & OS
 # =========================
 .env
+.venv
 .env.local
 .DS_Store
+/dataset

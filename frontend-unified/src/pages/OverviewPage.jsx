@@ -1,7 +1,11 @@
+import React, { useState } from 'react';
 import { Box, Typography, Button, Grid, Card, CardContent, Chip } from "@mui/material";
 import { PlayArrow, InsertChartOutlined, ShieldOutlined, SpeedOutlined, ArrowForwardIos, MedicalServicesOutlined, ScienceOutlined, QueryStatsOutlined } from "@mui/icons-material";
+import PatientPanelModal from '../components/PatientPanelModal';
 
 const OverviewPage = () => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   return (
     <Box sx={{ p: { xs: 3, md: 6 }, maxWidth: 1000, margin: "0 auto" }}>
       {/* Hero Section */}
@@ -25,7 +29,14 @@ const OverviewPage = () => {
           connect, and where to click first.
         </Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button variant="contained" color="primary" startIcon={<PlayArrow />} size="large" sx={{ px: 4, py: 1.5 }}>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<PlayArrow />} 
+            size="large" 
+            sx={{ px: 4, py: 1.5 }}
+            onClick={() => setIsModalOpen(true)}
+          >
             Open a patient & try it
           </Button>
           <Button variant="outlined" startIcon={<InsertChartOutlined />} size="large" sx={{ px: 4, py: 1.5 }}>
@@ -131,6 +142,13 @@ const OverviewPage = () => {
 
         </Box>
       </Box>
+
+      {/* Patient Panel Modal */}
+      <PatientPanelModal 
+        open={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        patient={{ id: 'New Patient', dataset: 'Custom Input' }} 
+      />
     </Box>
   );
 };
