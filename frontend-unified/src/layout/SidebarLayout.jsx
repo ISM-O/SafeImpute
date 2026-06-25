@@ -47,7 +47,7 @@ const menuSections = [
     id: 3,
     title: "3 PROOF IT WORKS",
     items: [
-      { label: "Dashboard", icon: ChartBar, path: "/dashboard" },
+      { label: "Dashboard", icon: ChartBar, path: "/dashboard", hiddenRoles: ["Clinicien"] },
       { label: "Compare Methods", icon: Columns, path: "/compare-methods" },
       { label: "Privacy Report", icon: ShieldCheck, path: "/privacy-report" },
     ],
@@ -106,9 +106,13 @@ const SidebarLayout = () => {
       {/* Navigation Links */}
       <Box sx={{ flexGrow: 1, overflowY: "auto", px: 2, pb: 2 }}>
         {menuSections.map((section) => {
-          // Filter admin items if not admin
+          // Filter admin items if not admin and check hiddenRoles
           const visibleItems = section.items.filter(
-            (item) => !item.adminOnly || user?.role === "Admin"
+            (item) => {
+              if (item.adminOnly && user?.role !== "Admin") return false;
+              if (item.hiddenRoles && item.hiddenRoles.includes(user?.role)) return false;
+              return true;
+            }
           );
 
           if (visibleItems.length === 0) return null;
