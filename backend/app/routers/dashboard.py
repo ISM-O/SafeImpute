@@ -5,12 +5,12 @@ from datetime import datetime, timedelta
 import calendar
 from ..db.database import get_db
 from ..models import AuditLog, User
-from ..auth.guards import get_current_clinician_or_admin
+from ..auth.guards import get_current_researcher_or_admin
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/")
-def get_dashboard_metrics(db: Session = Depends(get_db), current_user: User = Depends(get_current_clinician_or_admin)):
+def get_dashboard_metrics(db: Session = Depends(get_db), current_user: User = Depends(get_current_researcher_or_admin)):
     # Total imputations based on audit logs
     total_imputations = db.query(AuditLog).filter(AuditLog.action.like("IMPUTATION_PERFORMED%")).count()
     

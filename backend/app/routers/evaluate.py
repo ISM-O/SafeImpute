@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends
 import json
 import os
 from ..models import User
-from ..auth.guards import get_current_clinician_or_admin
+from ..auth.guards import get_current_user
 
 router = APIRouter(prefix="/evaluate", tags=["evaluate"])
 
 @router.get("/metrics")
-def get_metrics(current_user: User = Depends(get_current_clinician_or_admin)):
+def get_metrics(current_user: User = Depends(get_current_user)):
     metrics_path = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "metrics.json")
     
     # Default baseline scores (from the benchmark)

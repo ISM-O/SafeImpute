@@ -5,12 +5,12 @@ from typing import List, Dict, Any
 import datetime
 from ..db.database import get_db
 from ..models import Patient, Panel, User
-from ..auth.guards import get_current_clinician_or_admin
+from ..auth.guards import get_current_user
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 @router.get("/")
-def get_patients(db: Session = Depends(get_db), current_user: User = Depends(get_current_clinician_or_admin)):
+def get_patients(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     patients = db.query(Patient).order_by(desc(Patient.created_at)).all()
     
     result = []

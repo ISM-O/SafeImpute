@@ -346,39 +346,7 @@ const UsersManagement = () => {
                   </Typography>
                 </Box>
 
-                <Box sx={{ mb: 2 }}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      mb: 1,
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-                    >
-                      <LockKey size={14} /> Access
-                    </Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                      {user.accessLevel} / {user.maxAccess}
-                    </Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={(user.accessLevel / user.maxAccess) * 100}
-                    sx={{
-                      height: 6,
-                      borderRadius: 3,
-                      bgcolor: "#f1f5f9",
-                      "& .MuiLinearProgress-bar": {
-                        bgcolor: user.color,
-                        borderRadius: 3,
-                      },
-                    }}
-                  />
-                </Box>
+
 
                 <Box
                   sx={{

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import apiClient from "../api/client";
+import { useAuth } from "../hooks/useAuth";
 import {
   Dialog,
   DialogTitle,
@@ -21,42 +22,22 @@ import {
   Select,
   MenuItem
 } from "@mui/material";
-import { X, WarningCircle, Circle, Key } from "@phosphor-icons/react";
+import { X, WarningCircle, Circle, Key, Check } from "@phosphor-icons/react";
 
-const modules = [
-  { section: "START" },
-  { id: "overview", name: "Overview", view: true, edit: null, run: null, export: null, manage: null },
-  { section: "SAFEIMPUTE" },
-  { id: "patient_panel", name: "Patient Panel", view: true, edit: true, run: true, export: true, manage: null },
-  { id: "imputation", name: "Imputation", view: true, edit: null, run: true, export: true, manage: null },
-  { id: "evaluation", name: "Evaluation", view: true, edit: null, run: true, export: true, manage: null },
-  { id: "privacy_report", name: "Privacy Report", view: true, edit: null, run: true, export: true, manage: null },
-  { id: "compare_methods", name: "Compare Methods", view: true, edit: null, run: null, export: true, manage: null },
-  { section: "ADMINISTRATION" },
-  { id: "datasets_models", name: "Datasets & Models", view: true, edit: true, run: null, export: null, manage: true },
-  { id: "users_access", name: "Users & Access", view: true, edit: null, run: null, export: null, manage: true },
-  { id: "activity_logs", name: "Activity Logs", view: true, edit: null, run: null, export: true, manage: null },
+const getAccess = (role, featureRoles) => featureRoles.includes(role);
+
+const getModules = (role) => [
+  { id: "overview", name: "Overview", view: getAccess(role, ["Admin", "Chercheur", "Clinicien"]) },
+  { id: "patients", name: "Patients", view: getAccess(role, ["Admin", "Chercheur", "Clinicien"]) },
+  { id: "imputation", name: "Imputation", view: getAccess(role, ["Admin", "Chercheur", "Clinicien"]) },
+  { id: "dashboard", name: "Dashboard", view: getAccess(role, ["Admin", "Chercheur"]) },
+  { id: "compare_methods", name: "Compare Methods", view: getAccess(role, ["Admin", "Chercheur", "Clinicien"]) },
+  { id: "privacy_report", name: "Privacy Report", view: getAccess(role, ["Admin", "Chercheur", "Clinicien"]) },
+  { id: "access_users", name: "Access & Users", view: getAccess(role, ["Admin"]) },
 ];
 
-const PermissionSwitch = ({ checked, disabled }) => {
-  if (disabled === null) {
-    return <Typography sx={{ color: "text.disabled", textAlign: "center" }}>-</Typography>;
-  }
-  return (
-    <Box sx={{ display: "flex", justifyContent: "center" }}>
-      <Switch
-        checked={checked}
-        size="small"
-        sx={{
-          "& .MuiSwitch-switchBase.Mui-checked": { color: "primary.main" },
-          "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: "primary.main" },
-        }}
-      />
-    </Box>
-  );
-};
-
 const PermissionMatrixModal = ({ open, onClose, user, onUserUpdated }) => {
+  const { user: currentUser } = useAuth();
   const [selectedRole, setSelectedRole] = useState(user?.role || "Clinicien");
   const [saving, setSaving] = useState(false);
 
@@ -96,6 +77,7 @@ const PermissionMatrixModal = ({ open, onClose, user, onUserUpdated }) => {
               <Select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value)}
+                disabled={currentUser?.email === user.email}
                 size="small"
                 variant="outlined"
                 sx={{
@@ -125,18 +107,12 @@ const PermissionMatrixModal = ({ open, onClose, user, onUserUpdated }) => {
 
       <DialogContent sx={{ p: 3, pt: 0 }}>
         {/* User Stats Row */}
-        <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+        <Box sx={{ display: "flex", gap: 2, mb: 3, alignItems: "center" }}>
           <Chip
             icon={<Circle weight="fill" size={8} />}
             label="Active"
             size="small"
             sx={{ bgcolor: "#d1fae5", color: "#059669", fontWeight: 600, "& .MuiChip-icon": { color: "#059669" } }}
-          />
-          <Chip
-            icon={<Key size={14} />}
-            label={`${user.accessLevel} / ${user.maxAccess} permissions`}
-            size="small"
-            sx={{ bgcolor: "#f1f5f9", color: "#475569", fontWeight: 500 }}
           />
           <Typography variant="caption" color="text.disabled" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             <Circle size={10} /> Active now
@@ -161,43 +137,28 @@ const PermissionMatrixModal = ({ open, onClose, user, onUserUpdated }) => {
             <TableHead>
               <TableRow sx={{ bgcolor: "#f8fafc" }}>
                 <TableCell sx={{ fontWeight: 600, color: "text.secondary" }}>MODULE</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 600, color: "text.secondary" }}>View<br/><span style={{fontSize: "0.7rem", color: "#10b981"}}>all</span></TableCell>
-                <TableCell align="center" sx={{ fontWeight: 600, color: "text.secondary" }}>Edit<br/><span style={{fontSize: "0.7rem", color: "#10b981"}}>all</span></TableCell>
-                <TableCell align="center" sx={{ fontWeight: 600, color: "text.secondary" }}>Run<br/><span style={{fontSize: "0.7rem", color: "#10b981"}}>all</span></TableCell>
-                <TableCell align="center" sx={{ fontWeight: 600, color: "text.secondary" }}>Export<br/><span style={{fontSize: "0.7rem", color: "#10b981"}}>all</span></TableCell>
-                <TableCell align="center" sx={{ fontWeight: 600, color: "text.secondary" }}>Manage<br/><span style={{fontSize: "0.7rem", color: "#10b981"}}>all</span></TableCell>
+                <TableCell align="center" sx={{ fontWeight: 600, color: "text.secondary" }}>Access</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {modules.map((row, index) => {
-                if (row.section) {
-                  return (
-                    <TableRow key={`sec-${index}`}>
-                      <TableCell colSpan={5} sx={{ py: 2, borderBottom: "1px solid #f1f5f9" }}>
-                        <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: "0.05em" }}>
-                          {row.section}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="right" sx={{ py: 2, borderBottom: "1px solid #f1f5f9" }}>
-                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
-                          <Typography variant="caption" color="text.disabled">master</Typography>
-                          <Switch defaultChecked size="small" sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: "primary.main" }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: "primary.main" } }} />
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  );
-                }
-                return (
-                  <TableRow key={row.id}>
-                    <TableCell sx={{ fontWeight: 500, color: "text.primary", borderBottom: "1px solid #f1f5f9" }}>{row.name}</TableCell>
-                    <TableCell sx={{ borderBottom: "1px solid #f1f5f9" }}><PermissionSwitch checked={row.view} disabled={row.view} /></TableCell>
-                    <TableCell sx={{ borderBottom: "1px solid #f1f5f9" }}><PermissionSwitch checked={row.edit} disabled={row.edit} /></TableCell>
-                    <TableCell sx={{ borderBottom: "1px solid #f1f5f9" }}><PermissionSwitch checked={row.run} disabled={row.run} /></TableCell>
-                    <TableCell sx={{ borderBottom: "1px solid #f1f5f9" }}><PermissionSwitch checked={row.export} disabled={row.export} /></TableCell>
-                    <TableCell sx={{ borderBottom: "1px solid #f1f5f9" }}><PermissionSwitch checked={row.manage} disabled={row.manage} /></TableCell>
-                  </TableRow>
-                );
-              })}
+              {getModules(selectedRole).map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell sx={{ fontWeight: 500, color: "text.primary", borderBottom: "1px solid #f1f5f9", py: 2 }}>{row.name}</TableCell>
+                  <TableCell align="center" sx={{ borderBottom: "1px solid #f1f5f9", py: 2 }}>
+                    {row.view ? (
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+                        <Check weight="bold" color="#10b981" />
+                        <Typography variant="body2" sx={{ color: "success.main", fontWeight: 600 }}>Yes</Typography>
+                      </Box>
+                    ) : (
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+                        <X weight="bold" color="#94a3b8" />
+                        <Typography variant="body2" sx={{ color: "text.disabled", fontWeight: 600 }}>No</Typography>
+                      </Box>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </TableContainer>

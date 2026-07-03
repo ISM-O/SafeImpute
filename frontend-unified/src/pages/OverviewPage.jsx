@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Box, Typography, Button, Grid, Card, CardContent, Chip } from "@mui/material";
 import { PlayArrow, InsertChartOutlined, ShieldOutlined, SpeedOutlined, ArrowForwardIos, MedicalServicesOutlined, ScienceOutlined, QueryStatsOutlined } from "@mui/icons-material";
 import PatientPanelModal from '../components/PatientPanelModal';
+import HowItWorksModal from '../components/HowItWorksModal';
 
 const OverviewPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
 
   return (
     <Box sx={{ p: { xs: 3, md: 6 }, maxWidth: 1000, margin: "0 auto" }}>
@@ -23,10 +25,7 @@ const OverviewPage = () => {
           SafeImpute fills them in.
         </Typography>
         <Typography variant="body1" sx={{ mb: 4, fontSize: '1.1rem', color: 'text.secondary', maxWidth: 800 }}>
-          A small AI model (a masked Transformer) predicts the missing analytes
-          from a patient's panel — and, crucially, <b>provides a confidence score</b> without sending
-          anyone's data. Below is the whole product in one go — how the pieces
-          connect, and where to click first.
+          SafeImpute utilizes a specialized <b>Masked Transformer</b> architecture to analyze incomplete laboratory panels. By understanding the complex correlations between different analytes, the model accurately predicts missing values while attaching a rigorous <b>confidence score</b> to each prediction. All processing happens locally, ensuring that sensitive patient data never leaves your secure environment.
         </Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button 
@@ -39,7 +38,13 @@ const OverviewPage = () => {
           >
             Open a patient & try it
           </Button>
-          <Button variant="outlined" startIcon={<InsertChartOutlined />} size="large" sx={{ px: 4, py: 1.5 }}>
+          <Button 
+            variant="outlined" 
+            startIcon={<InsertChartOutlined />} 
+            size="large" 
+            sx={{ px: 4, py: 1.5 }}
+            onClick={() => setIsHowItWorksOpen(true)}
+          >
             See how it works
           </Button>
         </Box>
@@ -148,6 +153,11 @@ const OverviewPage = () => {
         open={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         patient={{ id: 'New Patient', dataset: 'Custom Input' }} 
+      />
+
+      <HowItWorksModal 
+        open={isHowItWorksOpen} 
+        onClose={() => setIsHowItWorksOpen(false)} 
       />
     </Box>
   );

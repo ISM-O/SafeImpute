@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 import json
 import os
-from ..auth.guards import get_current_researcher_or_admin
+from ..auth.guards import get_current_user
 from ..models import User
 
 router = APIRouter(prefix="/privacy", tags=["Privacy"])
 
 @router.get("/report")
-def get_privacy_report(current_user: User = Depends(get_current_researcher_or_admin)):
+def get_privacy_report(current_user: User = Depends(get_current_user)):
     """
     Returns the cached privacy audit results from privacy_report.json
     """

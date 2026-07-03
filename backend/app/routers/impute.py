@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from ..models import User, Patient, Panel, AuditLog
 from ..db.database import get_db
-from ..auth.guards import get_current_clinician_or_admin
+from ..auth.guards import get_current_user
 
 router = APIRouter(prefix="/impute", tags=["imputation"])
 
@@ -15,7 +15,7 @@ class ImputeRequest(BaseModel):
     patient_id: Optional[str] = None
 
 @router.post("/")
-def impute_panel(request: ImputeRequest, current_user: User = Depends(get_current_clinician_or_admin), db: Session = Depends(get_db)):
+def impute_panel(request: ImputeRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Real ML Imputation
     try:
         from ..ml.impute import run_inference
