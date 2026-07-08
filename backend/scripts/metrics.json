@@ -1,0 +1,12 @@
+{
+    "reconstruction": {
+        "rmse": 0.7987949205879852,
+        "mae": 0.568457841873169,
+        "description": "Erreur calcul\u00e9e sur 20% de donn\u00e9es artificiellement masqu\u00e9es."
+    },
+    "baselines": {
+        "mean_rmse": 0.9922638811162653,
+        "knn_rmse": 0.9658250953239608,
+        "mice_rmse": 0.8368829389769636
+    }
+}
