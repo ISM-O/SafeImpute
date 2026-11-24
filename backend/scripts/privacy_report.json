@@ -1,12 +1,13 @@
 {
-  "timestamp": "2026-11-24T14:39:03.800254+00:00",
+  "timestamp": "2026-11-24T16:11:29.490684+00:00",
   "seed": 42,
+  "model": "standard",
   "dp_sgd": {
     "enabled": false,
     "epsilon": null,
     "delta": null,
     "clipping_norm": null,
-    "note": "The current model is trained without differential privacy (planned work)."
+    "note": "This model is trained without differential privacy."
   },
   "mia": {
     "auc": 0.5003,

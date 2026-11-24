@@ -69,3 +69,53 @@ class MaskedTransformer(nn.Module):
         sigma_squared = F.softplus(out[:, :, 1]) + 1e-2
         
         return mu, sigma_squared
+
+# ---------------------------------------------------------------------------
+# Differentially private variant (trained with DP-SGD / Opacus)
+# ---------------------------------------------------------------------------
+# Opacus cannot compute per-sample gradients through nn.MultiheadAttention, so
+# the encoder layer is rebuilt with opacus.layers.DPMultiheadAttention. The
+# layer mirrors nn.TransformerEncoderLayer (post-norm, ReLU, same sizes), so the
+# DP model has the same architecture and parameter count as MaskedTransformer.
+
+class DPEncoderLayer(nn.Module):
+    def __init__(self, d_model, nhead, dim_feedforward, dropout=0.1):
+        super().__init__()
+        from opacus.layers import DPMultiheadAttention  # imported lazily: only needed for DP
+        self.self_attn = DPMultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.dropout = nn.Dropout(dropout)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+    def forward(self, x):
+        attn, _ = self.self_attn(x, x, x, need_weights=False)
+        x = self.norm1(x + self.dropout1(attn))
+        ff = self.linear2(self.dropout(F.relu(self.linear1(x))))
+        return self.norm2(x + self.dropout2(ff))
+
+
+class DPMaskedTransformer(MaskedTransformer):
+    """Same model as MaskedTransformer, with Opacus-compatible attention layers."""
+
+    def __init__(self, num_features=34, d_model=64, nhead=4, num_layers=3, dim_feedforward=256):
+        super().__init__(num_features, d_model, nhead, num_layers, dim_feedforward)
+        self.transformer = nn.Sequential(
+            *[DPEncoderLayer(d_model, nhead, dim_feedforward) for _ in range(num_layers)]
+        )
+
+
+# Model registry: "standard" = trained without DP, "dp" = trained with DP-SGD
+MODEL_KINDS = ("standard", "dp")
+MODEL_FILES = {"standard": "masked_transformer.pt", "dp": "masked_transformer_dp.pt"}
+
+
+def build_model(kind="standard", num_features=38):
+    if kind == "standard":
+        return MaskedTransformer(num_features=num_features)
+    if kind == "dp":
+        return DPMaskedTransformer(num_features=num_features)
+    raise ValueError(f"Unknown model kind: {kind!r} (expected one of {MODEL_KINDS})")

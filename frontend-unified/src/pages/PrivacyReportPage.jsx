@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, Grid, Card, CardContent, Chip, CircularProgress, Alert } from "@mui/material";
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, Typography, Button, Grid, Card, CardContent, Chip, CircularProgress, Alert, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import { PlayArrow, DownloadOutlined, LockOpenOutlined, CheckCircle, InfoOutlined, WarningAmber } from "@mui/icons-material";
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
@@ -36,19 +36,21 @@ const PrivacyReportPage = () => {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [modelKind, setModelKind] = useState('standard'); // 'standard' or 'dp' (trained with DP-SGD)
 
-  const fetchReport = async () => {
+  const fetchReport = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/privacy/report', {
+      const response = await fetch(`http://localhost:8000/privacy/report?model=${modelKind}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (!response.ok) {
         if (response.status === 404) {
-          throw new Error("No privacy report found. Please run the audit script first.");
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.detail || "No privacy report found. Please run the audit script first.");
         }
         throw new Error("Failed to load privacy report.");
       }
@@ -60,22 +62,35 @@ const PrivacyReportPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [modelKind]);
 
   useEffect(() => {
     fetchReport();
-  }, []);
+  }, [fetchReport]);
 
   const handleExport = () => {
     if (!reportData) return;
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(reportData, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "privacy_report.json");
+    downloadAnchorNode.setAttribute("download", `privacy_report_${modelKind}.json`);
     document.body.appendChild(downloadAnchorNode); // required for firefox
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
   };
+
+  const modelSelector = (
+    <ToggleButtonGroup
+      size="small"
+      exclusive
+      value={modelKind}
+      onChange={(e, value) => value && setModelKind(value)}
+      sx={{ '& .MuiToggleButton-root': { textTransform: 'none', px: 2 } }}
+    >
+      <ToggleButton value="standard">Standard model</ToggleButton>
+      <ToggleButton value="dp">DP-SGD model</ToggleButton>
+    </ToggleButtonGroup>
+  );
 
   if (loading) {
     return (
@@ -89,6 +104,7 @@ const PrivacyReportPage = () => {
     return (
       <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1200, margin: "0 auto" }}>
         <Typography variant="h1" sx={{ mb: 2 }}>Privacy Report</Typography>
+        <Box sx={{ mb: 3 }}>{modelSelector}</Box>
         <Alert severity="warning" sx={{ mb: 3 }}>{error}</Alert>
         <Button variant="contained" onClick={fetchReport}>Retry</Button>
       </Box>
@@ -115,7 +131,8 @@ const PrivacyReportPage = () => {
             Patient data protection audit · SafeImpute Internal
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          {modelSelector}
           <Button startIcon={<LockOpenOutlined />} color="success" sx={{ fontWeight: 600 }}>
             Audit generated at {new Date(reportData.timestamp).toLocaleTimeString()}
           </Button>
