@@ -20,63 +20,31 @@ Two empirical tests are run on the trained Masked Transformer:
    If imputation copied training records, imputed panels would be markedly closer
    to the training set than the real panels are.
 
-Differential privacy (DP-SGD) is NOT applied to the current model: the report says
-so explicitly ("enabled": false). It is listed as future work in the README.
-
-Run from backend/scripts:  python run_privacy_audit.py
-Output: privacy_report.json (read by the /privacy/report API route).
+The audit runs on either model, with the same patients and the same random draws:
+    python run_privacy_audit.py               # standard model -> privacy_report.json
+    python run_privacy_audit.py --model dp    # DP-SGD model   -> privacy_report_dp.json
+For the DP model, the "dp_sgd" section is filled from models/dp_training.json
+(epsilon, delta, clipping norm). The reports are served by GET /privacy/report?model=...
 """
 
 import datetime
 import json
 import os
-import sys
 
 import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import roc_auc_score
 from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import StandardScaler
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.dirname(SCRIPTS_DIR))
-
-from app.ml.model import MaskedTransformer  # noqa: E402
-from scripts.loaders import PhysioNetLoader  # noqa: E402
+from common import (MODELS_DIR, SCRIPTS_DIR, fit_scaler, load_data, load_model,
+                    parse_model_arg, predict, transform)
 
 SEED = 42
 MASKING_RATIO = 0.20      # same ratio as in train.py / evaluate.py
 N_MIA_PATIENTS = 2000     # patients per group (members / non-members)
 N_DCR_QUERIES = 1000      # held-out patients used for the DCR test
 MIA_TARGET_AUC = 0.55     # threshold shown in the dashboard
-BATCH_SIZE = 4096
-
-
-def standardize(X_train, mask_train, X_other, mask_other):
-    """Fit the scaler on observed training values only (as in train.py)."""
-    scaler = StandardScaler()
-    raw_train = X_train.copy()
-    raw_train[mask_train == 0] = np.nan
-    scaler.fit(raw_train)
-
-    def transform(X, mask):
-        raw = X.copy()
-        raw[mask == 0] = np.nan
-        return pd.DataFrame(scaler.transform(raw), columns=X.columns).fillna(0).values.astype(np.float32)
-
-    return transform(X_train, mask_train), transform(X_other, mask_other)
-
-
-@torch.no_grad()
-def predict(model, X):
-    """Return mu and sigma^2 for an (n_rows, n_features) array, in batches."""
-    mus, variances = [], []
-    for start in range(0, len(X), BATCH_SIZE):
-        mu, var = model(torch.from_numpy(X[start:start + BATCH_SIZE]))
-        mus.append(mu.numpy())
-        variances.append(var.numpy())
-    return np.concatenate(mus), np.concatenate(variances)
 
 
 def masked_inputs(X, mask, rng):
@@ -116,27 +84,32 @@ def complete(model, X, mask):
     return np.where(mask == 1, X, mu)
 
 
-def run_audit():
-    print("Privacy audit: loading data and model...")
+def dp_section(kind):
+    """Training-time privacy guarantee: none for the standard model, read from metadata for DP."""
+    if kind == "standard":
+        return {"enabled": False, "epsilon": None, "delta": None, "clipping_norm": None,
+                "note": "This model is trained without differential privacy."}
+    with open(os.path.join(MODELS_DIR, "dp_training.json")) as f:
+        meta = json.load(f)
+    return {"enabled": True, "epsilon": meta["epsilon"], "delta": meta["delta"],
+            "clipping_norm": meta["clipping_norm"], "noise_multiplier": meta["noise_multiplier"],
+            "privacy_unit": meta["privacy_unit"]}
+
+
+def run_audit(kind="standard"):
+    print(f"Privacy audit of the '{kind}' model: loading data and model...")
     rng = np.random.default_rng(SEED)
     torch.manual_seed(SEED)
 
-    loader = PhysioNetLoader(
-        folder_A_path="../../dataset/training/training_setA",
-        folder_B_path="../../dataset/training/training_setB",
-        cache_dir=os.path.join(SCRIPTS_DIR, "data", "processed"),
-    )
-    X_train, mask_train, df_train, X_val, mask_val, df_val = loader.load()
+    X_train, mask_train, df_train, X_val, mask_val, df_val = load_data()
     ids_train = df_train["PatientID"].to_numpy()
     ids_val = df_val["PatientID"].to_numpy()
 
-    Xtr, Xva = standardize(X_train, mask_train, X_val, mask_val)
+    scaler = fit_scaler(X_train, mask_train)
+    Xtr, Xva = transform(scaler, X_train, mask_train), transform(scaler, X_val, mask_val)
     Mtr, Mva = mask_train.values.astype(np.float32), mask_val.values.astype(np.float32)
 
-    model = MaskedTransformer(num_features=Xtr.shape[1])
-    weights = os.path.join(SCRIPTS_DIR, "models", "masked_transformer.pt")
-    model.load_state_dict(torch.load(weights, map_location="cpu", weights_only=True))
-    model.eval()
+    model = load_model(kind, num_features=Xtr.shape[1])
 
     # ---------- 1. Membership inference attack (loss threshold) ----------
     print("1/2 Membership inference attack (loss threshold, patient level)...")
@@ -179,13 +152,8 @@ def run_audit():
     report = {
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "seed": SEED,
-        "dp_sgd": {
-            "enabled": False,
-            "epsilon": None,
-            "delta": None,
-            "clipping_norm": None,
-            "note": "The current model is trained without differential privacy (planned work).",
-        },
+        "model": kind,
+        "dp_sgd": dp_section(kind),
         "mia": {
             "auc": round(mia_auc, 4),
             "target": MIA_TARGET_AUC,
@@ -204,11 +172,12 @@ def run_audit():
         },
     }
 
-    output_path = os.path.join(SCRIPTS_DIR, "privacy_report.json")
+    name = "privacy_report.json" if kind == "standard" else f"privacy_report_{kind}.json"
+    output_path = os.path.join(SCRIPTS_DIR, name)
     with open(output_path, "w") as f:
         json.dump(report, f, indent=2)
     print(f"Report saved to {output_path}")
 
 
 if __name__ == "__main__":
-    run_audit()
+    run_audit(parse_model_arg())

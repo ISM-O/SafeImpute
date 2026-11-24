@@ -1,101 +1,70 @@
-import torch
-import numpy as np
-import pandas as pd
+"""
+Reconstruction metrics (RMSE, MAE) of a trained model on held-out patients.
+
+20% of the observed values of the validation patients are hidden (fixed seed),
+the model imputes them, and the error is computed on those hidden cells, in
+standardized units. The same cells are used for every model, so the standard
+and DP-SGD models are directly comparable.
+
+Run from backend/scripts:
+    python evaluate.py                 # standard model
+    python evaluate.py --model dp      # model trained with DP-SGD
+
+Results are merged into metrics.json under "models" (baselines are kept).
+"""
+
 import json
 import os
-import sys
-import pickle
-from sklearn.metrics import mean_squared_error, mean_absolute_error
 
-# Ajout du dossier racine au path pour les imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import numpy as np
+import torch
 
-from app.ml.model import MaskedTransformer
-from scripts.loaders import PhysioNetLoader
-from sklearn.preprocessing import StandardScaler
+from common import SCRIPTS_DIR, fit_scaler, load_data, load_model, parse_model_arg, predict, transform
 
-def evaluate_reconstruction():
-    print("📊 Démarrage de l'évaluation (Axe 1: Reconstruction)...")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+MASKING_RATIO = 0.20
+SEED = 42
+METRICS_PATH = os.path.join(SCRIPTS_DIR, "metrics.json")
 
-    # 1. Chargement des données d'évaluation depuis le cache
-    loader = PhysioNetLoader(folder_A_path="../../dataset/training/training_setA", folder_B_path="../../dataset/training/training_setB")
-    X_train, mask_train, df_train, X_val, mask_val, df_val = loader.load()
 
-    # Normalisation (Utilisation du scaler de l'entraînement)
-    scaler_path = "models/scaler.pkl"
-    if not os.path.exists(scaler_path):
-        raise FileNotFoundError("Scaler introuvable. Entraînez le modèle d'abord (train.py) !")
-    with open(scaler_path, "rb") as f:
-        scaler = pickle.load(f)
-    
-    X_raw_for_scaling = X_val.copy()
-    X_raw_for_scaling[mask_val == 0] = np.nan
-    X_scaled = pd.DataFrame(scaler.transform(X_raw_for_scaling), columns=X_val.columns)
-    X_scaled = X_scaled.fillna(0)
+def evaluate(kind):
+    print(f"Evaluating the '{kind}' model...")
+    X_train, mask_train, _, X_val, mask_val, _ = load_data()
+    scaler = fit_scaler(X_train, mask_train)
+    X = transform(scaler, X_val, mask_val)
+    M = mask_val.values.astype(np.float32)
 
-    # Conversion en tenseurs (Plus besoin de tronquer à 5000, on prend tout X_val)
-    X_tensor = torch.tensor(X_scaled.values, dtype=torch.float32).to(device)
-    mask_tensor = torch.tensor(mask_val.values, dtype=torch.float32).to(device)
+    model = load_model(kind, num_features=X.shape[1])
 
-    # 2. Chargement du modèle entraîné
-    model_path = "models/masked_transformer.pt"
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Le modèle {model_path} est introuvable. Entraînez-le d'abord !")
-        
-    model = MaskedTransformer(num_features=X_val.shape[1]).to(device)
-    model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
-    model.eval() # Mode évaluation : coupe le dropout et fige les poids
+    # Hide 20% of the observed values (same cells for every model: fixed seed)
+    torch.manual_seed(SEED)
+    hidden = ((torch.rand(M.shape) < MASKING_RATIO).numpy()) & (M == 1)
+    X_input = X.copy()
+    X_input[hidden] = 0.0
 
-    # 3. Création du masque artificiel d'évaluation (On cache 20% des vraies données)
-    torch.manual_seed(42) # Pour des résultats reproductibles
-    rand_matrix = torch.rand(mask_tensor.shape).to(device)
-    eval_mask = (rand_matrix < 0.20) * mask_tensor # 1 = Donnée artificiellement cachée
-    
-    # On efface les données cachées pour le modèle
-    X_input = X_tensor.clone()
-    X_input[eval_mask == 1] = 0
+    mu, _ = predict(model, X_input)
+    errors = mu[hidden] - X[hidden]
+    rmse = float(np.sqrt(np.mean(errors ** 2)))
+    mae = float(np.mean(np.abs(errors)))
+    print(f"RMSE = {rmse:.4f} | MAE = {mae:.4f} ({int(hidden.sum())} hidden values)")
 
-    # 4. Inférence (Prédiction)
-    print("🧠 Inférence en cours...")
-    with torch.no_grad(): # On ne calcule pas les gradients pour aller plus vite
-        mu, sigma_squared = model(X_input)
-
-    # 5. Extraction des valeurs pour le calcul des métriques
-    # On ne s'intéresse QU'AUX cases qu'on a artificiellement cachées
-    true_values = X_tensor[eval_mask == 1].cpu().numpy()
-    predicted_values = mu[eval_mask == 1].cpu().numpy()
-
-    # Dénormalisation pour avoir des métriques cliniquement lisibles (ex: en mg/dL)
-    # Note : Simplification ici en prenant la moyenne globale pour l'exemple. 
-    # En production, on dénormalise par colonne.
-    true_values_denorm = scaler.inverse_transform(
-        np.zeros((len(true_values), X_val.shape[1])) + true_values[:, np.newaxis]
-    )[:, 0] # Approximation rapide
-    predicted_values_denorm = scaler.inverse_transform(
-        np.zeros((len(predicted_values), X_val.shape[1])) + predicted_values[:, np.newaxis]
-    )[:, 0]
-
-    # 6. Calcul des métriques
-    rmse = np.sqrt(mean_squared_error(true_values, predicted_values))
-    mae = mean_absolute_error(true_values, predicted_values)
-
-    print(f"✅ RMSE (Erreur Quadratique Moyenne) : {rmse:.4f}")
-    print(f"✅ MAE (Erreur Absolue Moyenne) : {mae:.4f}")
-
-    # 7. Sauvegarde dans metrics.json
-    results = {
-        "reconstruction": {
-            "rmse": float(rmse),
-            "mae": float(mae),
-            "description": "Erreur calculée sur 20% de données artificiellement masquées."
-        }
+    data = {}
+    if os.path.exists(METRICS_PATH):
+        with open(METRICS_PATH) as f:
+            data = json.load(f)
+    entry = {
+        "rmse": rmse,
+        "mae": mae,
+        "n_hidden_values": int(hidden.sum()),
+        "description": "Error on 20% of observed values artificially hidden in held-out patients "
+                       "(standardized units).",
     }
-    
-    with open("metrics.json", "w") as f:
-        json.dump(results, f, indent=4)
-        
-    print("📁 Résultats sauvegardés dans metrics.json")
+    data.setdefault("models", {})[kind] = entry
+    if kind == "standard":
+        data["reconstruction"] = entry  # kept for backward compatibility
+    with open(METRICS_PATH, "w") as f:
+        json.dump(data, f, indent=4)
+    print(f"Saved to {METRICS_PATH}")
+
 
 if __name__ == "__main__":
-    evaluate_reconstruction()
+    evaluate(parse_model_arg())

@@ -27,6 +27,20 @@ def get_metrics(current_user: User = Depends(get_current_user)):
                     results["transformer_rmse"] = data["reconstruction"]["rmse"]
                     results["is_from_cache"] = False
                 
+                # Per-model metrics: "standard" and, once trained, "dp" (DP-SGD)
+                models = data.get("models", {})
+                if "dp" in models:
+                    results["dp_transformer_rmse"] = models["dp"]["rmse"]
+                    results["dp_transformer_mae"] = models["dp"]["mae"]
+                if "standard" in models:
+                    results["transformer_mae"] = models["standard"]["mae"]
+                dp_meta_path = os.path.join(os.path.dirname(metrics_path), "models", "dp_training.json")
+                if os.path.exists(dp_meta_path):
+                    with open(dp_meta_path, "r") as meta_file:
+                        meta = json.load(meta_file)
+                    results["dp_epsilon"] = meta.get("epsilon")
+                    results["dp_delta"] = meta.get("delta")
+
                 # Fetch dynamically computed baselines if they exist
                 if "baselines" in data:
                     baselines = data["baselines"]

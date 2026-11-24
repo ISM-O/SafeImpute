@@ -3,16 +3,20 @@ import joblib
 import pandas as pd
 import numpy as np
 import os
-from .model import MaskedTransformer
+from .model import MODEL_FILES, build_model
 
 class SafeImputerEngine:
-    def __init__(self, model_path="scripts/models/masked_transformer.pt", scaler_path="scripts/models/scaler.pkl"):
-        # 1. On charge le modèle sur CPU
+    def __init__(self, kind="standard", scaler_path="scripts/models/scaler.pkl"):
+        # 1. On charge le modèle demandé ("standard" ou "dp") sur CPU
         self.device = torch.device("cpu")
-        self.model = MaskedTransformer(num_features=38).to(self.device)
-        
+        self.kind = kind
+        self.model = build_model(kind, num_features=38).to(self.device)
+
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        self.model.load_state_dict(torch.load(os.path.join(base_dir, model_path), map_location=self.device, weights_only=True))
+        model_path = os.path.join(base_dir, "scripts", "models", MODEL_FILES[kind])
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"The '{kind}' model has not been trained yet ({MODEL_FILES[kind]} not found).")
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
         self.model.eval() # Coupe les gradients et le dropout
         
         # 2. On charge le Scaler
@@ -72,13 +76,13 @@ class SafeImputerEngine:
                 
         return results
 
-# Singleton instance
-engine = None
+# One cached engine per model kind ("standard", "dp")
+engines = {}
 
-def run_inference(observed, mask):
-    global engine
-    if engine is None:
-        engine = SafeImputerEngine()
+def run_inference(observed, mask, kind="standard"):
+    if kind not in engines:
+        engines[kind] = SafeImputerEngine(kind=kind)
+    engine = engines[kind]
     
     # Préparez les données patient pour le predict (observed ne contient que les données avec valeurs)
     # L'engine remplit les vides avec des NaN, donc ça gère bien le mask automatiquement.
@@ -92,4 +96,4 @@ def run_inference(observed, mask):
             imputed[m] = results["imputed_values"][m]
             uncertainty[m] = results["uncertainty_sigma"][m]
             
-    return imputed, uncertainty
+    return imputed, uncertainty

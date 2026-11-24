@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from ..models import User, Patient, Panel, AuditLog
@@ -13,13 +13,16 @@ class ImputeRequest(BaseModel):
     observed: Dict[str, float]
     mask: List[str]
     patient_id: Optional[str] = None
+    model: Literal["standard", "dp"] = "standard"  # "dp" = model trained with DP-SGD
 
 @router.post("/")
 def impute_panel(request: ImputeRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Real ML Imputation
     try:
         from ..ml.impute import run_inference
-        imputed_values, uncertainty_values = run_inference(request.observed, request.mask)
+        imputed_values, uncertainty_values = run_inference(request.observed, request.mask, request.model)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         print(f"Inference error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -37,7 +40,7 @@ def impute_panel(request: ImputeRequest, current_user: User = Depends(get_curren
             patient_id=patient.id,
             clinician_id=current_user.id,
             observed_data=request.observed,
-            imputed_data={"imputed": imputed_values, "uncertainty": uncertainty_values}
+            imputed_data={"imputed": imputed_values, "uncertainty": uncertainty_values, "model": request.model}
         )
         db.add(panel)
         db.commit()
@@ -53,5 +56,6 @@ def impute_panel(request: ImputeRequest, current_user: User = Depends(get_curren
             
     return {
         "imputed": imputed_values,
-        "uncertainty": uncertainty_values
+        "uncertainty": uncertainty_values,
+        "model": request.model
     }

@@ -64,3 +64,29 @@ Une fois les données chargées, le code JSX dessine trois zones principales :
 * **Carte MIA (Jauge) :** Dessine un demi-cercle avec `recharts` pour visualiser le score d'attaque (actuellement 0.500, la valeur d'un attaquant qui répond au hasard).
 * **Carte Traceability (Courbes) :** Dessine les données traitées par `buildHistogramData` pour comparer les vraies données et les données de l'IA.
 * **Carte DP-SGD (Textes) :** Affiche « DP-SGD Off » tant que le modèle n'est pas entraîné avec la confidentialité différentielle ; affichera epsilon, delta et la norme d'écrêtage une fois DP-SGD implémenté.
+
+---
+
+## 3. Deux modèles : standard et DP-SGD
+
+SafeImpute peut utiliser deux versions du même Masked Transformer (même architecture, 152 642 paramètres, mêmes données, même masquage de 20 %) :
+
+| | Modèle standard | Modèle DP-SGD |
+|---|---|---|
+| Entraînement | `scripts/train.py` | `scripts/train_dp.py` (Opacus : écrêtage des gradients par exemple + bruit gaussien) |
+| Poids | `models/masked_transformer.pt` | `models/masked_transformer_dp.pt` + `models/dp_training.json` (ε, δ, bruit, écrêtage) |
+| Évaluation | `python evaluate.py` | `python evaluate.py --model dp` |
+| Audit | `python run_privacy_audit.py` → `privacy_report.json` | `python run_privacy_audit.py --model dp` → `privacy_report_dp.json` |
+
+Les deux modèles sont évalués et audités sur **exactement les mêmes patients et les mêmes valeurs masquées** (graine 42), ce qui permet de mesurer le coût du DP-SGD en précision (RMSE, MAE) et son effet sur l'attaque MIA.
+
+**Unité de confidentialité** : un enregistrement (une ligne horaire). Un patient ayant plusieurs lignes, la garantie (ε, δ) porte sur un enregistrement, pas sur un patient entier ; c'est indiqué dans `dp_training.json`.
+
+**Dans l'interface** : un sélecteur « Standard / DP-SGD » permet de choisir le modèle pour l'imputation (fenêtre du patient) et pour le rapport de confidentialité ; la page de comparaison affiche le modèle DP-SGD à côté du modèle standard dès qu'il a été évalué. Côté API : `POST /impute/` accepte `"model": "standard" | "dp"`, et `GET /privacy/report?model=dp`.
+
+Ordre d'exécution pour le modèle DP (depuis `backend/scripts`, GPU recommandé) :
+```bash
+python train_dp.py                     # ε = 8 par défaut ; --target-epsilon 3 pour une garantie plus forte
+python evaluate.py --model dp
+python run_privacy_audit.py --model dp
+```

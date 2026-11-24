@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Dialog, DialogContent, Box, Typography, Button, IconButton,
-  Switch, TextField, Chip, CircularProgress, Tooltip
+  Switch, TextField, Chip, CircularProgress, Tooltip, ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import { Close, Storage, CheckCircle, WarningAmber, PlayArrow, UploadFile, ScienceOutlined } from '@mui/icons-material';
 
@@ -14,6 +14,7 @@ const PatientPanelModal = ({ open, onClose, patient }) => {
   const [isImputing, setIsImputing] = useState(false);
   const [imputationResults, setImputationResults] = useState(null);
   const [viewState, setViewState] = useState('input'); // 'input' or 'results'
+  const [modelKind, setModelKind] = useState('standard'); // 'standard' or 'dp' (trained with DP-SGD)
   const fileInputRef = useRef(null);
 
   // Reset state when patient changes or modal opens
@@ -136,7 +137,8 @@ const PatientPanelModal = ({ open, onClose, patient }) => {
           return acc;
         }, {}),
         mask: maskArray,
-        patient_id: patientId || undefined
+        patient_id: patientId || undefined,
+        model: modelKind
       };
 
       const response = await fetch('http://localhost:8000/impute/', {
@@ -148,6 +150,11 @@ const PatientPanelModal = ({ open, onClose, patient }) => {
         body: JSON.stringify(payload)
       });
 
+      if (response.status === 404) {
+        const err = await response.json();
+        alert(err.detail || 'This model is not available yet.');
+        return;
+      }
       if (!response.ok) throw new Error('Imputation failed');
 
       const data = await response.json();
@@ -323,9 +330,23 @@ const PatientPanelModal = ({ open, onClose, patient }) => {
 
         {imputationResults && (
           <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-            Results available
+            Results available{imputationResults.model === 'dp' ? ' (DP-SGD model)' : ''}
           </Typography>
         )}
+
+        <Tooltip title="Standard: best accuracy. DP-SGD: trained with differential privacy (formal privacy guarantee, slightly lower accuracy).">
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={modelKind}
+            onChange={(e, value) => value && setModelKind(value)}
+            disabled={isImputing}
+            sx={{ '& .MuiToggleButton-root': { textTransform: 'none', px: 1.5 } }}
+          >
+            <ToggleButton value="standard">Standard</ToggleButton>
+            <ToggleButton value="dp">DP-SGD</ToggleButton>
+          </ToggleButtonGroup>
+        </Tooltip>
 
         <Button
           variant="outlined"

@@ -158,7 +158,14 @@ const AccuracyCard = ({ metrics }) => {
     { name: "Transformer", value: metrics.transformer_rmse, color: "#0f766e", isModel: true },
     { name: "k-NN", value: metrics.knn_rmse, color: "#3b82f6", isModel: false },
     { name: "MICE", value: metrics.mice_rmse, color: "#8b5cf6", isModel: false },
-    { name: "Mean", value: metrics.mean_rmse, color: "#94a3b8", isModel: false }
+    { name: "Mean", value: metrics.mean_rmse, color: "#94a3b8", isModel: false },
+    // Shown once the DP-SGD model has been trained and evaluated (evaluate.py --model dp)
+    ...(metrics.dp_transformer_rmse != null
+      ? [{
+          name: `Transformer DP${metrics.dp_epsilon != null ? ` (ε ${metrics.dp_epsilon.toFixed(1)})` : ""}`,
+          value: metrics.dp_transformer_rmse, color: "#14b8a6", isModel: true
+        }]
+      : [])
   ].sort((a, b) => a.value - b.value);
 
   // Dynamically calculate maxVal based on the worst performing method to ensure bars fit
