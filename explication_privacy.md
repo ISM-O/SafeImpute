@@ -2,23 +2,24 @@
 
 Ce document explique le fonctionnement complet du système de rapport de confidentialité (Privacy Report), de la génération des données côté Backend (Python) à leur affichage côté Frontend (React).
 
-Ce système sert à prouver que le modèle d'Intelligence Artificielle utilisé (par exemple pour l'imputation de données) est sûr, qu'il protège la vie privée des patients, et qu'il n'a pas mémorisé de données sensibles.
+Ce système sert à tester empiriquement si le modèle d'imputation a mémorisé des patients d'entraînement. Ces tests ne constituent pas une garantie formelle de confidentialité (seule une méthode comme DP-SGD en apporterait une).
 
 ---
 
 ## 1. Le Backend (Génération des données et API)
 
-Le backend est responsable de simuler/calculer les métriques de sécurité et de les mettre à disposition de manière sécurisée. Il est divisé en deux parties : le script d'audit et la route de l'API.
+Le backend est responsable de calculer les métriques de sécurité et de les mettre à disposition de manière sécurisée. Il est divisé en deux parties : le script d'audit et la route de l'API.
 
 ### A. Le script d'audit : `backend/scripts/run_privacy_audit.py`
-C'est un script Python indépendant qui génère les résultats de l'audit et les sauvegarde dans un fichier JSON. 
+Script Python indépendant qui **calcule réellement** les métriques de confidentialité sur le modèle entraîné (`models/masked_transformer.pt`) et les données PhysioNet 2019, puis les sauvegarde dans `backend/scripts/privacy_report.json`. Toutes les graines aléatoires sont fixées (`SEED = 42`).
 
-**Fonction principale utilisée : `generate_privacy_report()`**
-Voici ce qu'elle fait étape par étape :
-1. **Configuration DP-SGD (Differential Privacy)** : Elle définit les paramètres mathématiques de confidentialité qui auraient été utilisés lors de l'entraînement du modèle (Epsilon, Delta, Clipping norm).
-2. **Membership Inference Attack (MIA)** : Elle génère un score (AUC = 0.512) simulant une attaque de pirates essayant de deviner si un patient faisait partie des données d'entraînement. Un score proche de 0.5 est excellent.
-3. **Traceability (NN-Distance)** : Elle utilise `numpy.random.normal()` pour générer deux jeux de données statistiques simulant les distances entre les données (vraies données VS données générées). Cela sert à prouver que l'IA ne fait pas de simples "copier-coller".
-4. **Sauvegarde** : Elle écrit toutes ces informations, avec la date et l'heure du jour, dans le fichier `backend/scripts/privacy_report.json`.
+**Fonction principale : `run_audit()`**
+1. **Membership Inference Attack (MIA), attaque par seuil de perte (Yeom et al., 2018)** : l'unité de confidentialité est le patient. Pour 2 000 patients d'entraînement (« membres ») et 2 000 patients jamais vus (« non-membres »), le script masque 20 % des valeurs observées (comme à l'entraînement) et calcule la NLL gaussienne moyenne du modèle par patient. Si le modèle avait mémorisé ses patients d'entraînement, leur perte serait plus faible. Le score d'attaque est −NLL ; on rapporte son AUC ROC. **Résultat actuel : AUC = 0.500**, l'attaquant ne distingue pas les membres des non-membres.
+2. **Distance to Closest Record (DCR)** : pour 1 000 patients jamais vus, on compare deux versions du même panel à un jeu de référence d'entraînement (un enregistrement aléatoire par patient d'entraînement) : le panel réel (`real_to_real`) et le même panel après ré-imputation par le modèle de 20 % des valeurs observées (`imputed_to_train`). **Résultat actuel : distance médiane 0.874 (réel) contre 0.974 (imputé)** : les panels imputés ne sont pas plus proches des données d'entraînement que les panels réels, aucun signe de recopie.
+3. **DP-SGD** : le modèle actuel **n'est pas** entraîné avec la confidentialité différentielle. Le rapport l'indique explicitement (`"enabled": false`) ; c'est un travail prévu.
+4. **Sauvegarde** : le rapport (horodatage, graine, méthodes, résultats) est écrit dans `backend/scripts/privacy_report.json`.
+
+Exécution : `cd backend/scripts && python run_privacy_audit.py` (environ 1 min 30 sur CPU).
 
 ### B. L'API : `backend/app/routers/privacy.py`
 C'est le serveur web (construit avec FastAPI) qui permet au Frontend de venir lire les résultats de l'audit.
@@ -60,6 +61,6 @@ C'est un composant React qui s'occupe de toute la page "Privacy Report".
 ### Résumé de l'Affichage (Les Cartes)
 Une fois les données chargées, le code JSX dessine trois zones principales :
 * **Bannière Principale :** Devient verte (succès) si le score MIA est inférieur à la cible. Sinon, elle devient orange.
-* **Carte MIA (Jauge) :** Dessine un demi-cercle avec `recharts` pour visualiser le score d'attaque (ici 0.512, ce qui est très proche de l'idéal qui est 0.5).
+* **Carte MIA (Jauge) :** Dessine un demi-cercle avec `recharts` pour visualiser le score d'attaque (actuellement 0.500, la valeur d'un attaquant qui répond au hasard).
 * **Carte Traceability (Courbes) :** Dessine les données traitées par `buildHistogramData` pour comparer les vraies données et les données de l'IA.
-* **Carte DP-SGD (Textes) :** Affiche simplement les variables envoyées par le backend (Epsilon: 2.5, Delta: 1e-5).
+* **Carte DP-SGD (Textes) :** Affiche « DP-SGD Off » tant que le modèle n'est pas entraîné avec la confidentialité différentielle ; affichera epsilon, delta et la norme d'écrêtage une fois DP-SGD implémenté.
