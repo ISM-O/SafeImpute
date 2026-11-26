@@ -19,7 +19,7 @@ from scripts.loaders import PhysioNetLoader
 def train_model():
     # 1. Configuration du matériel (GPU si dispo, sinon CPU)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"🚀 Démarrage de l'entraînement sur : {device}")
+    print(f"Démarrage de l'entraînement sur : {device}")
 
     # 2. Chargement des données (Utilise le cache Parquet créé précédemment)
     loader = PhysioNetLoader(
@@ -113,7 +113,7 @@ def train_model():
     os.makedirs("models", exist_ok=True)
     model_path = "models/masked_transformer.pt"
     torch.save(model.state_dict(), model_path)
-    print(f"✅ Entraînement terminé. Modèle sauvegardé dans : {model_path}")
+    print(f"Entraînement terminé. Modèle sauvegardé dans : {model_path}")
 
 if __name__ == "__main__":
     train_model()
