@@ -45,7 +45,7 @@ class PhysioNetLoader:
         ])
         
         if cache_exists:
-            print("⚡ Chargement instantané depuis le cache Parquet...")
+            print("Chargement instantané depuis le cache Parquet...")
             X_train = pd.read_parquet(self.cache_x_train)
             mask_train = pd.read_parquet(self.cache_mask_train)
             df_train = pd.read_parquet(self.cache_full_train)
@@ -94,5 +94,5 @@ class PhysioNetLoader:
         mask_val.to_parquet(self.cache_mask_val)
         df_val.to_parquet(self.cache_full_val)
         
-        print("✅ Données prêtes et mises en cache !")
+        print("Données prêtes et mises en cache !")
         return X_train, mask_train, df_train, X_val, mask_val, df_val

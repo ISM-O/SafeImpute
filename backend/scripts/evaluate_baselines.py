@@ -10,7 +10,7 @@ from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
 
 def evaluate_baselines():
-    print("📊 Loading validation data...")
+    print("Loading validation data...")
     # Ensure paths work when run from backend/scripts/
     scaler_path = '../models/scaler.pkl'
     if not os.path.exists(scaler_path):
@@ -55,7 +55,7 @@ def evaluate_baselines():
     results = {}
     
     # 1. Mean Imputation
-    print("📈 Running Mean Imputer...")
+    print("Running Mean Imputer...")
     mean_imputer = SimpleImputer(strategy='mean')
     # Fit only on observed values
     mean_imputer.fit(X_input)
@@ -63,11 +63,11 @@ def evaluate_baselines():
     pred_mean = X_mean[eval_mask_np == 1]
     rmse_mean = np.sqrt(mean_squared_error(true_values, pred_mean))
     results["mean_rmse"] = float(rmse_mean)
-    print(f"✅ Mean RMSE: {rmse_mean:.4f}")
+    print(f"Mean RMSE: {rmse_mean:.4f}")
     
     # 2. KNN & MICE are too slow on full 250k+ rows
     # We sample a representative subset (10,000 rows) to calculate their error
-    print("📈 Preparing sample for KNN and MICE (10000 rows)...")
+    print("Preparing sample for KNN and MICE (10000 rows)...")
     np.random.seed(42)
     sample_idx = np.random.choice(X_input.shape[0], size=10000, replace=False)
     
@@ -77,21 +77,21 @@ def evaluate_baselines():
     
     true_values_sample = X_tensor_sample[eval_mask_sample == 1]
     
-    print("📈 Running KNN Imputer (k=5)...")
+    print("Running KNN Imputer (k=5)...")
     knn_imputer = KNNImputer(n_neighbors=5)
     X_knn = knn_imputer.fit_transform(X_input_sample)
     pred_knn = X_knn[eval_mask_sample == 1]
     rmse_knn = np.sqrt(mean_squared_error(true_values_sample, pred_knn))
     results["knn_rmse"] = float(rmse_knn)
-    print(f"✅ KNN RMSE: {rmse_knn:.4f}")
+    print(f"KNN RMSE: {rmse_knn:.4f}")
     
-    print("📈 Running MICE (IterativeImputer)...")
+    print("Running MICE (IterativeImputer)...")
     mice_imputer = IterativeImputer(max_iter=10, random_state=42)
     X_mice = mice_imputer.fit_transform(X_input_sample)
     pred_mice = X_mice[eval_mask_sample == 1]
     rmse_mice = np.sqrt(mean_squared_error(true_values_sample, pred_mice))
     results["mice_rmse"] = float(rmse_mice)
-    print(f"✅ MICE RMSE: {rmse_mice:.4f}")
+    print(f"MICE RMSE: {rmse_mice:.4f}")
     
     # Update metrics.json
     metrics_path = "metrics.json"
@@ -109,7 +109,7 @@ def evaluate_baselines():
     with open(metrics_path, "w") as f:
         json.dump(data, f, indent=4)
         
-    print(f"📁 Baselines appended successfully to {metrics_path}")
+    print(f"Baselines appended successfully to {metrics_path}")
 
 if __name__ == "__main__":
     evaluate_baselines()

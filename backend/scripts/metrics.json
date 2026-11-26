@@ -3,6 +3,7 @@
         "rmse": 0.7987949848175049,
         "mae": 0.568457841873169,
         "n_hidden_values": 621091,
+        "rmse_baseline_sample": 0.81312096118927,
         "description": "Error on 20% of observed values artificially hidden in held-out patients (standardized units)."
     },
     "baselines": {
@@ -15,13 +16,15 @@
             "rmse": 0.7987949848175049,
             "mae": 0.568457841873169,
             "n_hidden_values": 621091,
+            "rmse_baseline_sample": 0.81312096118927,
             "description": "Error on 20% of observed values artificially hidden in held-out patients (standardized units)."
         },
         "dp": {
-            "rmse": 0.8489987850189209,
-            "mae": 0.5867204666137695,
+            "rmse": 0.8489987254142761,
+            "mae": 0.5867205262184143,
             "n_hidden_values": 621091,
+            "rmse_baseline_sample": 0.8618701696395874,
             "description": "Error on 20% of observed values artificially hidden in held-out patients (standardized units)."
         }
     }
-}
+}
