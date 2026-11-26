@@ -16,6 +16,12 @@
             "mae": 0.568457841873169,
             "n_hidden_values": 621091,
             "description": "Error on 20% of observed values artificially hidden in held-out patients (standardized units)."
+        },
+        "dp": {
+            "rmse": 0.8489987850189209,
+            "mae": 0.5867204666137695,
+            "n_hidden_values": 621091,
+            "description": "Error on 20% of observed values artificially hidden in held-out patients (standardized units)."
         }
     }
 }

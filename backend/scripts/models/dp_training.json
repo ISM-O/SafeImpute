@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "epsilon": 7.996,
+  "delta": 8.064886853669886e-08,
+  "clipping_norm": 1.0,
+  "noise_multiplier": 0.5049,
+  "target_epsilon": 8.0,
+  "epochs": 10,
+  "expected_batch_size": 1024,
+  "sample_rate": 0.0008258444138157964,
+  "learning_rate": 0.001,
+  "accountant": "RDP (Opacus)",
+  "privacy_unit": "record (one hourly row); patients contribute several records, so this is a record-level guarantee",
+  "n_training_records": 1239943,
+  "training_time_minutes": 684.1,
+  "trained_at": "2026-11-26T05:10:11.994047+00:00",
+  "device": "cpu"
+}
